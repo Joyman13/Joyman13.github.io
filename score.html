@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EduScore — ระบบบันทึกคะแนนนักเรียน</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800;900&family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script>
+tailwind.config={theme:{extend:{colors:{navy:{500:'#1B2A4A',600:'#142035',700:'#0D1625',800:'#243656'},gold:{50:'#FEF9E7',100:'#FEF3C7',200:'#FDE68A',400:'#FBBF24',500:'#E8A317',600:'#D97706'},teal:{50:'#F0FDFA',100:'#CCFBF1',500:'#0E7C6B',600:'#0A5A4E',700:'#084940'},cream:'#F5F0EB'},fontFamily:{display:['Kanit','sans-serif'],body:['Sarabun','sans-serif']}}}
+</script>
+<style>
+:root{--bg:#F5F0EB;--sidebar:#1B2A4A;--sidebar-h:#243656;--accent:#E8A317;--primary:#0E7C6B;--danger:#DC2626;--card:#fff;--text:#1F2937;--muted:#6B7280;--border:#E5E7EB}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--text)}
+::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:3px}
+@keyframes float{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-18px) rotate(5deg)}}
+@keyframes floatR{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(18px) rotate(-5deg)}}
+.lshape{position:absolute;border-radius:50%;opacity:.12;animation:float 6s ease-in-out infinite}.lshape:nth-child(even){animation:floatR 8s ease-in-out infinite}
+.pg-in{animation:pgI .25s ease-out}@keyframes pgI{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.card-h{transition:transform .2s,box-shadow .2s}.card-h:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.08)}
+.sb-item{transition:all .2s;border-left:3px solid transparent}.sb-item:hover,.sb-item.active{background:var(--sidebar-h);border-left-color:var(--accent)}
+.toast{animation:tIn .3s ease-out,tOut .3s ease-in 2.7s forwards}@keyframes tIn{from{opacity:0;transform:translateX(100%)}to{opacity:1;transform:translateX(0)}}@keyframes tOut{from{opacity:1}to{opacity:0;transform:translateX(100%)}}
+.modal-ov{animation:mfI .2s ease-out}@keyframes mfI{from{opacity:0}to{opacity:1}}
+.modal-ct{animation:mdI .25s ease-out}@keyframes mdI{from{opacity:0;transform:scale(.95) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.dt th{background:#F8FAFC;font-weight:600;text-align:left;padding:8px 10px;border-bottom:2px solid var(--border);font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+.dt td{padding:6px 10px;border-bottom:1px solid var(--border);font-size:.82rem;vertical-align:middle}
+.dt tr:hover td{background:#F9FAFB}.dt tr.inactive td{opacity:.4}
+.fi{width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:.9rem;transition:border-color .2s,box-shadow .2s;background:#fff}
+.fi:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(14,124,107,.1)}
+.fs{width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:.9rem;background:#fff;cursor:pointer}
+.fs:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(14,124,107,.1)}
+.si{width:60px;padding:4px;border:1.5px solid var(--border);border-radius:6px;text-align:center;font-family:'Sarabun',sans-serif;font-size:.82rem}
+.si:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(14,124,107,.1)}
+.si.behavior{border-color:#FBBF24;background:#FFFBEB}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;font-family:'Sarabun',sans-serif;font-weight:600;font-size:.85rem;cursor:pointer;transition:all .2s;border:none;white-space:nowrap}
+.btn-p{background:var(--primary);color:#fff}.btn-p:hover{background:#0A5A4E;transform:translateY(-1px);box-shadow:0 4px 12px rgba(14,124,107,.3)}
+.btn-a{background:var(--accent);color:#fff}.btn-a:hover{background:#D97706;transform:translateY(-1px)}
+.btn-d{background:var(--danger);color:#fff}.btn-d:hover{background:#B91C1C}
+.btn-o{background:transparent;border:1.5px solid var(--border);color:var(--text)}.btn-o:hover{border-color:var(--primary);color:var(--primary);background:rgba(14,124,107,.05)}
+.btn-sm{padding:4px 8px;font-size:.75rem}
+.chk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:4px}
+.chk-grid label{display:flex;align-items:center;gap:4px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;cursor:pointer;font-size:.82rem;transition:all .2s}
+.chk-grid label:hover{border-color:var(--primary);background:rgba(14,124,107,.05)}
+.chk-grid label:has(input:checked){border-color:var(--primary);background:rgba(14,124,107,.08)}
+.toggle{position:relative;width:38px;height:20px;flex-shrink:0;display:inline-block}
+.toggle input{opacity:0;width:0;height:0;position:absolute}
+.toggle .sl{position:absolute;cursor:pointer;inset:0;background:#CBD5E1;border-radius:20px;transition:.25s}
+.toggle .sl:before{content:'';position:absolute;width:14px;height:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.25s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.toggle input:checked+.sl{background:var(--primary)}.toggle input:checked+.sl:before{transform:translateX(18px)}
+.grade-4{color:#059669;font-weight:700}.grade-3{color:#0E7C6B;font-weight:600}.grade-2{color:#D97706;font-weight:600}.grade-1{color:#DC2626;font-weight:600}.grade-0{color:#991B1B;font-weight:700}
+.cat-badge{display:inline-flex;align-items:center;gap:2px;padding:1px 6px;border-radius:99px;font-size:.7rem;font-weight:600}
+.cat-exam{background:#DBEAFE;color:#2563EB}.cat-behavior{background:#FEF3C7;color:#D97706}.cat-work{background:#D1FAE5;color:#059669}.cat-other{background:#F3E8FF;color:#7C3AED}
+.st-present{background:#D1FAE5;color:#059669}.st-absent{background:#FEE2E2;color:#DC2626}.st-late{background:#FFEDD5;color:#EA580C}.st-leave{background:#DBEAFE;color:#2563EB}.st-leave-early{background:#FEF3C7;color:#D97706}
+.att-btn{padding:7px 12px;border-radius:10px;font-weight:600;font-size:.8rem;cursor:pointer;transition:all .15s;border:2px solid transparent;font-family:'Sarabun',sans-serif}
+.att-btn:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.1)}.att-btn.active{border-color:var(--text);transform:scale(1.03)}
+textarea.csv-area{width:100%;min-height:120px;font-family:monospace;font-size:.8rem;border:1.5px solid var(--border);border-radius:8px;padding:8px;resize:vertical}
+textarea.csv-area:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(14,124,107,.1)}
+.sidebar-w{width:15rem;transition:transform .3s ease}
+.sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:29}
+.sidebar-backdrop.show{display:block}
+@media(max-width:1023px){.sidebar-w{transform:translateX(-100%);z-index:31;width:14rem}.sidebar-w.open{transform:translateX(0)}.main-wrap{margin-left:0!important}}
+@media(min-width:1024px){.sidebar-w{transform:translateX(0)!important}}
+@media(max-width:639px){.dt th,.dt td{padding:5px 6px;font-size:.75rem}.si{width:52px;font-size:.78rem}.btn{padding:7px 10px;font-size:.8rem;gap:4px}.btn-sm{padding:3px 6px;font-size:.7rem}.chk-grid{grid-template-columns:repeat(auto-fill,minmax(85px,1fr))}.att-btn{padding:5px 8px;font-size:.72rem}}
+@media print{
+.no-print,.sidebar-w,.sidebar-backdrop,#topBar,#bulkBar,#toastBox,#modalOv{display:none!important}
+.main-wrap{margin-left:0!important}body{background:#fff!important}
+.print-area{padding:0!important;margin:0!important}
+.print-area table{width:100%;border-collapse:collapse}
+.print-area th,.print-area td{border:1px solid #999!important;padding:4px 8px!important;font-size:11px!important;color:#000!important;background:#fff!important}
+.print-area th{background:#f0f0f0!important;font-weight:700!important}
+.print-title{font-family:'Kanit',sans-serif;font-size:18px;font-weight:700;text-align:center;margin-bottom:4px;color:#000}
+.print-sub{font-size:12px;text-align:center;color:#555;margin-bottom:12px}
+.podium-print{display:flex;justify-content:center;gap:20px;margin:16px 0}
+.podium-print .podium-card{border:2px solid #999;border-radius:12px;padding:12px 16px;text-align:center;min-width:120px}
+.podium-print .podium-card.gold{border-color:#B8860B;background:#FFFDE7}
+.podium-print .podium-card.silver{border-color:#808080;background:#F5F5F5}
+.podium-print .podium-card.bronze{border-color:#CD7F32;background:#FFF8E1}
+.rank-card-print{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dotted #ccc}
+.rank-card-print .rank-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;background:#eee;color:#333;flex-shrink:0}
+}
+.panel-card{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:hidden}
+.panel-header{padding:10px 14px;font-weight:700;font-size:.85rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.panel-body{padding:10px;max-height:50vh;overflow-y:auto}
+.panel-item{padding:8px 10px;border-radius:8px;cursor:pointer;transition:all .15s;font-size:.82rem;display:flex;align-items:center;gap:8px;margin-bottom:2px}
+.panel-item:hover{background:rgba(14,124,107,.05)}.panel-item.selected{background:rgba(14,124,107,.1);border-left:3px solid var(--primary);font-weight:600}
+.clock-display{font-family:'Kanit',sans-serif;font-size:1rem;font-weight:600;color:var(--primary);letter-spacing:.05em}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 6px rgba(232,163,23,.3))}50%{filter:drop-shadow(0 0 18px rgba(232,163,23,.7))}}
+.trophy-glow{animation:glow 2s ease-in-out infinite}
+.gv-on{color:#059669;background:#D1FAE5;padding:1px 8px;border-radius:99px;font-size:.7rem;font-weight:600}
+.gv-off{color:#DC2626;background:#FEE2E2;padding:1px 8px;border-radius:99px;font-size:.7rem;font-weight:600}
+.podium-wrap{display:flex;align-items:flex-end;justify-content:center;gap:12px;padding:20px 0 10px;perspective:600px}
+.podium-col{display:flex;flex-direction:column;align-items:center;position:relative}
+.podium-avatar{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Kanit',sans-serif;font-weight:800;font-size:1.2rem;color:#fff;margin-bottom:8px;position:relative;z-index:2;box-shadow:0 4px 15px rgba(0,0,0,.15)}
+.podium-name{font-family:'Kanit',sans-serif;font-weight:700;font-size:.9rem;margin-bottom:2px;text-align:center;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.podium-score{font-size:.8rem;font-weight:600;margin-bottom:6px}
+.podium-block{border-radius:10px 10px 0 0;display:flex;align-items:flex-end;justify-content:center;padding-bottom:10px;min-width:100px;position:relative;overflow:hidden}
+.podium-block::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.3) 0%,transparent 50%);pointer-events:none}
+.podium-rank{position:absolute;top:8px;font-family:'Kanit',sans-serif;font-weight:900;font-size:1.5rem;opacity:.25}
+.podium-1 .podium-avatar{background:linear-gradient(135deg,#F59E0B,#D97706);width:76px;height:76px;font-size:1.4rem}
+.podium-1 .podium-block{background:linear-gradient(135deg,#FDE68A,#F59E0B);height:140px;min-width:120px}
+.podium-1 .podium-rank{color:#92400E}
+.podium-1 .podium-name{color:#92400E}
+.podium-2 .podium-avatar{background:linear-gradient(135deg,#94A3B8,#64748B)}
+.podium-2 .podium-block{background:linear-gradient(135deg,#E2E8F0,#94A3B8);height:110px;min-width:110px}
+.podium-2 .podium-rank{color:#334155}
+.podium-2 .podium-name{color:#334155}
+.podium-3 .podium-avatar{background:linear-gradient(135deg,#FB923C,#EA580C)}
+.podium-3 .podium-block{background:linear-gradient(135deg,#FED7AA,#FB923C);height:85px;min-width:100px}
+.podium-3 .podium-rank{color:#7C2D12}
+.podium-3 .podium-name{color:#7C2D12}
+.rank-list-card{background:#fff;border-radius:12px;border:1.5px solid var(--border);padding:10px 14px;display:flex;align-items:center;gap:12px;transition:all .2s;margin-bottom:6px}
+.rank-list-card:hover{border-color:var(--primary);box-shadow:0 2px 8px rgba(14,124,107,.08)}
+.rank-num-circle{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Kanit',sans-serif;font-weight:800;font-size:.85rem;flex-shrink:0}
+.rank-num-1{background:linear-gradient(135deg,#FDE68A,#F59E0B);color:#92400E;box-shadow:0 2px 8px rgba(245,158,11,.4)}
+.rank-num-2{background:linear-gradient(135deg,#E2E8F0,#94A3B8);color:#334155}
+.rank-num-3{background:linear-gradient(135deg,#FED7AA,#FB923C);color:#7C2D12}
+.rank-num-n{background:#F1F5F9;color:#64748B}
+.rank-bar{height:6px;border-radius:3px;background:#E5E7EB;flex:1;max-width:200px;overflow:hidden}
+.rank-bar-fill{height:100%;border-radius:3px;transition:width .6s ease-out}
+.filter-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px;padding:12px 16px;background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.filter-bar label{font-size:.8rem;font-weight:600;color:var(--muted);white-space:nowrap}
+.filter-bar select{padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:.85rem;background:#fff;min-width:140px}
+.filter-bar select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(14,124,107,.1)}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+.shimmer-gold{background:linear-gradient(90deg,#FDE68A 0%,#FBBF24 25%,#FEF3C7 50%,#FBBF24 75%,#FDE68A 100%);background-size:200% 100%;animation:shimmer 3s linear infinite}
+</style>
+</head>
+<body class="font-body">
+
+<div id="loginPage" class="min-h-screen flex">
+<div class="hidden lg:flex lg:w-1/2 bg-navy-500 relative overflow-hidden items-center justify-center">
+<div class="lshape w-28 h-28 bg-gold-500" style="top:10%;left:15%"></div>
+<div class="lshape w-20 h-20 bg-teal-500" style="top:60%;left:10%;animation-delay:1s"></div>
+<div class="lshape w-36 h-36 bg-gold-400" style="top:30%;right:10%;animation-delay:2s"></div>
+<div class="lshape w-16 h-16 bg-white" style="bottom:15%;right:25%;animation-delay:.5s"></div>
+<div class="text-center relative z-10">
+<div class="text-gold-500 text-7xl xl:text-8xl mb-5"><i class="fas fa-graduation-cap"></i></div>
+<h1 class="font-display text-4xl xl:text-5xl font-bold text-white mb-2">EduScore</h1>
+<p class="text-navy-200 text-lg xl:text-xl">ระบบบันทึกคะแนนนักเรียน</p>
+</div></div>
+<div class="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-6 lg:p-8" style="background:var(--bg)">
+<div class="w-full max-w-md">
+<div class="lg:hidden text-center mb-6"><div class="text-teal-500 text-4xl sm:text-5xl mb-2"><i class="fas fa-graduation-cap"></i></div><h1 class="font-display text-2xl sm:text-3xl font-bold text-navy-500">EduScore</h1></div>
+<div class="bg-white rounded-2xl shadow-lg p-5 sm:p-8">
+<h2 class="font-display text-xl sm:text-2xl font-bold text-center mb-1">เข้าสู่ระบบ</h2>
+<p class="text-center text-xs sm:text-sm mb-5" style="color:var(--muted)">กรุณากรอกข้อมูลเพื่อเข้าสู่ระบบ</p>
+<div id="loginError" class="hidden bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg mb-3 text-xs sm:text-sm"><i class="fas fa-exclamation-circle mr-1"></i><span></span></div>
+<div class="mb-3"><label class="block text-xs sm:text-sm font-semibold mb-1">ชื่อผู้ใช้</label><div class="relative"><i class="fas fa-user absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i><input id="loginUser" class="fi pl-9" placeholder="กรอกชื่อผู้ใช้" onkeydown="if(event.key==='Enter')doLogin()"></div></div>
+<div class="mb-5"><label class="block text-xs sm:text-sm font-semibold mb-1">รหัสผ่าน</label><div class="relative"><i class="fas fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i><input id="loginPass" type="password" class="fi pl-9 pr-9" placeholder="กรอกรหัสผ่าน" onkeydown="if(event.key==='Enter')doLogin()"><button onclick="togglePass()" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><i id="passIcon" class="fas fa-eye text-sm"></i></button></div></div>
+<button onclick="doLogin()" class="btn btn-p w-full justify-center text-base sm:text-lg py-2.5"><i class="fas fa-sign-in-alt"></i> เข้าสู่ระบบ</button>
+</div>
+<div class="mt-4 sm:mt-6 bg-white rounded-xl shadow-sm p-4 sm:p-5">
+<p class="font-semibold text-xs sm:text-sm mb-2"><i class="fas fa-info-circle text-teal-500 mr-1"></i> บัญชีทดสอบ</p>
+<div class="grid gap-1.5 text-xs" style="color:var(--muted)">
+<div class="flex justify-between bg-gray-50 px-2.5 py-1.5 rounded-lg"><span><b>แอดมิน</b></span><span>admin / admin123</span></div>
+<div class="flex justify-between bg-gray-50 px-2.5 py-1.5 rounded-lg"><span><b>ครูคณิต (T001)</b></span><span class="hidden sm:inline">teacher1 / 1234</span><span class="sm:hidden">t1/1234</span></div>
+<div class="flex justify-between bg-gray-50 px-2.5 py-1.5 rounded-lg"><span><b>ครูวิทยา (T002)</b></span><span class="hidden sm:inline">teacher2 / 1234</span><span class="sm:hidden">t2/1234</span></div>
+<div class="flex justify-between bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200"><span><b>ครูภาษา (T003)</b></span><span class="hidden sm:inline">teacher3 / 1234</span><span class="sm:hidden">t3/1234</span></div>
+<div class="flex justify-between bg-blue-50 px-2.5 py-1.5 rounded-lg border border-blue-200"><span><b>นักเรียน ม.1/1</b></span><span>M101001 / 1234</span></div>
+<div class="flex justify-between bg-blue-50 px-2.5 py-1.5 rounded-lg border border-blue-200"><span><b>นักเรียน ม.1/2</b></span><span>M102001 / 1234</span></div>
+</div></div></div></div></div>
+
+<div id="appPage" class="hidden">
+<div id="sidebarBackdrop" class="sidebar-backdrop" onclick="closeSB()"></div>
+<aside id="sidebar" class="sidebar-w fixed left-0 top-0 h-screen z-30 overflow-y-auto no-print" style="background:var(--sidebar)"></aside>
+<div class="main-wrap transition-all duration-300" style="margin-left:15rem">
+<header id="topBar" class="sticky top-0 z-20 bg-white/95 backdrop-blur-sm shadow-sm px-3 sm:px-6 py-2.5 flex items-center justify-between no-print" style="border-bottom:1px solid var(--border)"></header>
+<main id="mainContent" class="p-3 sm:p-4 md:p-6"></main>
+</div></div>
+
+<div id="modalOv" class="hidden fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
+<div class="modal-ov absolute inset-0 bg-black/50" onclick="hideModal()"></div>
+<div class="modal-ct relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto"></div></div>
+
+<div id="bulkBar" class="hidden fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 bg-navy-500 text-white px-3 sm:px-5 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2 sm:gap-3 no-print flex-wrap justify-center">
+<span id="bulkCount" class="text-xs sm:text-sm font-semibold mr-1"></span>
+<button onclick="bulkAction('enable')" class="btn btn-sm" style="background:#059669;color:#fff"><i class="fas fa-toggle-on"></i><span class="hidden sm:inline"> เปิด</span></button>
+<button onclick="bulkAction('disable')" class="btn btn-sm" style="background:#6B7280;color:#fff"><i class="fas fa-toggle-off"></i><span class="hidden sm:inline"> ปิด</span></button>
+<button id="bulkGvOn" onclick="bulkAction('gradeOn')" class="btn btn-sm" style="background:#059669;color:#fff;display:none"><i class="fas fa-eye"></i><span class="hidden sm:inline"> แสดงเกรด</span></button>
+<button id="bulkGvOff" onclick="bulkAction('gradeOff')" class="btn btn-sm" style="background:#6B7280;color:#fff;display:none"><i class="fas fa-eye-slash"></i><span class="hidden sm:inline"> ซ่อนเกรด</span></button>
+<button onclick="bulkAction('delete')" class="btn btn-sm btn-d"><i class="fas fa-trash"></i><span class="hidden sm:inline"> ลบ</span></button>
+<button onclick="clearBulk()" class="btn btn-sm btn-o" style="border-color:#fff;color:#fff"><i class="fas fa-times"></i></button>
+</div>
+
+<div id="toastBox" class="fixed top-3 right-3 sm:top-4 sm:right-4 z-[60] flex flex-col gap-2 max-w-[calc(100vw-1.5rem)]"></div>
+
+<script>
+var seed=42;function sR(){seed=(seed*16807)%2147483647;return(seed-1)/2147483646;}
+
+var DB={
+subjectGroups:[
+{id:1,name:'กลุ่มสาระการเรียนรู้คณิตศาสตร์',active:true},
+{id:2,name:'กลุ่มสาระการเรียนรู้วิทยาศาสตร์และเทคโนโลยี',active:true},
+{id:3,name:'กลุ่มสาระการเรียนรู้ภาษาไทย',active:true},
+{id:4,name:'กลุ่มสาระการเรียนรู้ภาษาต่างประเทศ',active:true},
+{id:5,name:'กลุ่มสาระการเรียนรู้สังคมศึกษา ศาสนาและวัฒนธรรม',active:true}
+],
+users:[
+{id:0,username:'admin',password:'admin123',role:'admin',name:'ผู้ดูแลระบบ',teacherId:null,studentId:null},
+{id:1,username:'teacher1',password:'1234',role:'teacher',name:'ครูสมชาย ใจดี',teacherId:1,studentId:null},
+{id:2,username:'teacher2',password:'1234',role:'teacher',name:'ครูสมหญิง รักเรียน',teacherId:2,studentId:null},
+{id:3,username:'teacher3',password:'1234',role:'teacher',name:'ครูวิชัย มุ่งมั่น',teacherId:3,studentId:null},
+{id:4,username:'teacher4',password:'1234',role:'teacher',name:'ครูจันทร์ เพชรน้อย',teacherId:4,studentId:null},
+{id:5,username:'teacher5',password:'1234',role:'teacher',name:'ครูประเสริฐ ศรีสุข',teacherId:5,studentId:null},
+{id:10,username:'M101001',password:'1234',role:'student',name:'สิทธิชัย กล้าหาญ',teacherId:null,studentId:1},
+{id:11,username:'M102001',password:'1234',role:'student',name:'พีรพัฒน์ รุ่งเรือง',teacherId:null,studentId:6}
+],
+subjects:[
+{id:1,name:'คณิตศาสตร์',code:'MAT101',active:true,credits:3,groupId:1,levels:['ม.1','ม.2','ม.3']},
+{id:2,name:'วิทยาศาสตร์',code:'SCI201',active:true,credits:3,groupId:2,levels:['ม.1','ม.2','ม.3']},
+{id:3,name:'ภาษาไทย',code:'THA301',active:true,credits:3,groupId:3,levels:['ม.1','ม.2','ม.3']},
+{id:4,name:'ภาษาอังกฤษ',code:'ENG401',active:true,credits:2,groupId:4,levels:['ม.1','ม.2','ม.3']},
+{id:5,name:'สังคมศึกษา',code:'SOC501',active:true,credits:2,groupId:5,levels:['ม.1','ม.2','ม.3']}
+],
+classrooms:[
+{id:1,level:'ม.1',room:'1',active:true},{id:2,level:'ม.1',room:'2',active:true},
+{id:3,level:'ม.2',room:'1',active:true},{id:4,level:'ม.2',room:'2',active:true},
+{id:5,level:'ม.3',room:'1',active:true}
+],
+teachers:[
+{id:1,code:'T001',name:'ครูสมชาย ใจดี',active:true,groupId:1},
+{id:2,code:'T002',name:'ครูสมหญิง รักเรียน',active:true,groupId:2},
+{id:3,code:'T003',name:'ครูวิชัย มุ่งมั่น',active:true,groupId:3},
+{id:4,code:'T004',name:'ครูจันทร์ เพชรน้อย',active:true,groupId:4},
+{id:5,code:'T005',name:'ครูประเสริฐ ศรีสุข',active:true,groupId:5}
+],
+assignments:[
+{id:1,teacherId:1,subjectId:1,classroomIds:[1,2],gradeVisible:true},
+{id:2,teacherId:2,subjectId:2,classroomIds:[1,2],gradeVisible:true},
+{id:3,teacherId:3,subjectId:3,classroomIds:[1],gradeVisible:true},
+{id:4,teacherId:3,subjectId:3,classroomIds:[3],gradeVisible:true},
+{id:5,teacherId:4,subjectId:4,classroomIds:[1,3,5],gradeVisible:true},
+{id:6,teacherId:4,subjectId:5,classroomIds:[2,3],gradeVisible:true},
+{id:7,teacherId:5,subjectId:5,classroomIds:[1,4,5],gradeVisible:true},
+{id:8,teacherId:5,subjectId:1,classroomIds:[4,5],gradeVisible:true}
+],
+students:[
+{id:1,studentId:'M101001',name:'สิทธิชัย กล้าหาญ',classroomId:1,number:1,active:true},
+{id:2,studentId:'M101002',name:'ปรียา สว่างจิต',classroomId:1,number:2,active:true},
+{id:3,studentId:'M101003',name:'ธนา เรียบร้อย',classroomId:1,number:3,active:true},
+{id:4,studentId:'M101004',name:'นภัสสร แก้วใส',classroomId:1,number:4,active:true},
+{id:5,studentId:'M101005',name:'กิตติพงษ์ มั่งมี',classroomId:1,number:5,active:true},
+{id:6,studentId:'M102001',name:'พีรพัฒน์ รุ่งเรือง',classroomId:2,number:1,active:true},
+{id:7,studentId:'M102002',name:'ศิริลักษณ์ สุขสันต์',classroomId:2,number:2,active:true},
+{id:8,studentId:'M102003',name:'อนุชา พลอยงาม',classroomId:2,number:3,active:true},
+{id:9,studentId:'M102004',name:'จิราภรณ์ แสงดาว',classroomId:2,number:4,active:true},
+{id:10,studentId:'M102005',name:'ธีรพงษ์ ใจเด็ด',classroomId:2,number:5,active:true},
+{id:11,studentId:'M201001',name:'วิภาดา ทองดี',classroomId:3,number:1,active:true},
+{id:12,studentId:'M201002',name:'ปิยะ มงคล',classroomId:3,number:2,active:true},
+{id:13,studentId:'M201003',name:'สุภาพ รักษ์ดี',classroomId:3,number:3,active:true},
+{id:14,studentId:'M201004',name:'คมกฤช แก้วมณี',classroomId:3,number:4,active:true},
+{id:15,studentId:'M201005',name:'นลินทิพย์ ศรีสวัสดิ์',classroomId:3,number:5,active:true},
+{id:16,studentId:'M202001',name:'ภูมิพัฒน์ สุขใจ',classroomId:4,number:1,active:true},
+{id:17,studentId:'M202002',name:'ชนิดา พงศ์เพชร',classroomId:4,number:2,active:true},
+{id:18,studentId:'M202003',name:'อภิญญา วงศ์สวัสดิ์',classroomId:4,number:3,active:true},
+{id:19,studentId:'M202004',name:'ศุภกิจ บุญมี',classroomId:4,number:4,active:true},
+{id:20,studentId:'M202005',name:'พรรณี แสงอรุณ',classroomId:4,number:5,active:true},
+{id:21,studentId:'M301001',name:'ธนวัฒน์ รุ่งโรจน์',classroomId:5,number:1,active:true},
+{id:22,studentId:'M301002',name:'มาลี สุขสันต์',classroomId:5,number:2,active:true},
+{id:23,studentId:'M301003',name:'ชยากร กล้าหาญ',classroomId:5,number:3,active:true},
+{id:24,studentId:'M301004',name:'กนกกาญจน์ ทองงาม',classroomId:5,number:4,active:true},
+{id:25,studentId:'M301005',name:'ภัทรพล ศรีทอง',classroomId:5,number:5,active:true}
+],
+scoreCategories:[],scores:[],attendance:[]
+};
+
+/* สร้างหัวข้อคะแนน */
+var catTpls=[
+{name:'สอบกลางภาค',group:'สอบ',maxScore:50,isBehavior:false,weight:30},
+{name:'สอบปลายภาค',group:'สอบ',maxScore:50,isBehavior:false,weight:50},
+{name:'พฤติกรรม',group:'พฤติกรรม',maxScore:20,isBehavior:true,weight:10},
+{name:'การบ้าน',group:'งาน',maxScore:20,isBehavior:false,weight:10}
+];
+var catId=1;
+DB.assignments.forEach(function(a){catTpls.forEach(function(t){DB.scoreCategories.push({id:catId++,teacherId:a.teacherId,subjectId:a.subjectId,name:t.name,group:t.group,maxScore:t.maxScore,isBehavior:t.isBehavior,weight:t.weight});});});
+
+/* สร้างคะแนน */
+var baseAbil=[[88,72,63,52,45],[78,82,56,71,48],[93,67,76,58,84],[60,90,74,53,66],[97,69,85,55,77]];
+var scId=1;
+DB.assignments.forEach(function(asgn){
+asgn.classroomIds.forEach(function(clsId){
+var ci=DB.classrooms.findIndex(function(c){return c.id===clsId;});
+DB.students.filter(function(s){return s.classroomId===clsId;}).forEach(function(st,si){
+var base=baseAbil[ci][si];
+var cats=DB.scoreCategories.filter(function(c){return c.teacherId===asgn.teacherId&&c.subjectId===asgn.subjectId;});
+var scores={};
+cats.forEach(function(cat){if(cat.isBehavior){scores[cat.id]=0;}else{var r=base/100;scores[cat.id]=Math.max(0,Math.min(cat.maxScore,Math.round(r*cat.maxScore+sR()*cat.maxScore*0.15-cat.maxScore*0.05)));}});
+DB.scores.push({id:scId++,studentId:st.id,subjectId:asgn.subjectId,teacherId:asgn.teacherId,classroomId:clsId,scores:scores,total:0});
+});
+});
+});
+
+/* สร้างเช็คชื่อ */
+var sampleDates=['2025-07-14','2025-07-15','2025-07-16','2025-07-17','2025-07-18'];
+var attId=1;
+sampleDates.forEach(function(date){
+DB.assignments.forEach(function(asgn){
+asgn.classroomIds.forEach(function(clsId){
+var sts=DB.students.filter(function(s){return s.classroomId===clsId;});
+var period=1+Math.floor(sR()*4);
+var records=sts.map(function(st){var r=sR();var status,points;if(r<.08){status='absent';points=-2;}else if(r<.16){status='late';points=-1;}else if(r<.2){status='leave';points=0;}else if(r<.23){status='leave-early';points=-1;}else{status='present';points=0;}return{studentId:st.id,status:status,points:points};});
+DB.attendance.push({id:attId++,teacherId:asgn.teacherId,subjectId:asgn.subjectId,classroomId:clsId,date:date,period:period,records:records});
+});
+});
+});
+
+function calcTotal(tcId,subId,so){var cats=DB.scoreCategories.filter(function(c){return c.teacherId===tcId&&c.subjectId===subId;});if(!cats.length)return 0;var t=0;cats.forEach(function(c){var v=so[c.id]||0;if(c.maxScore>0)t+=(v/c.maxScore)*c.weight;});return Math.max(0,Math.min(100,Math.round(t*100)/100));}
+
+/* คำนวณพฤติกรรมจากเช็คชื่อ */
+DB.assignments.forEach(function(asgn){
+var behCat=DB.scoreCategories.find(function(c){return c.teacherId===asgn.teacherId&&c.subjectId===asgn.subjectId&&c.isBehavior;});if(!behCat)return;
+asgn.classroomIds.forEach(function(clsId){
+DB.scores.filter(function(s){return s.teacherId===asgn.teacherId&&s.subjectId===asgn.subjectId&&s.classroomId===clsId;}).forEach(function(sc){
+var bp=0;DB.attendance.forEach(function(a){if(a.teacherId===asgn.teacherId&&a.subjectId===asgn.subjectId&&a.classroomId===clsId){var rec=a.records.find(function(r){return r.studentId===sc.studentId;});if(rec)bp+=rec.points;}});
+sc.scores[behCat.id]=bp;sc.total=calcTotal(asgn.teacherId,asgn.subjectId,sc.scores);
+});
+});
+});
+DB.scores.filter(function(s){return s.total===0;}).forEach(function(sc){sc.total=calcTotal(sc.teacherId,sc.subjectId,sc.scores);});
+
+/* STATE */
+var ST={user:null,page:'dashboard',filter:{},bulk:{type:'',ids:new Set()},assignSel:{tcId:null,subId:null,clsIds:new Set()}};
+var charts={};
+
+/* UTILS */
+function $(id){return document.getElementById(id);}
+function sgName(id){var s=DB.subjectGroups.find(function(x){return x.id===id;});return s?s.name:'-';}
+function sgShort(id){return sgName(id).replace('กลุ่มสาระการเรียนรู้','');}
+function subName(id){var s=DB.subjects.find(function(x){return x.id===id;});return s?s.name:'-';}
+function subCode(id){var s=DB.subjects.find(function(x){return x.id===id;});return s?s.code:'';}
+function clsName(id){var c=DB.classrooms.find(function(x){return x.id===id;});return c?c.level+'/'+c.room:'-';}
+function tcName(id){var t=DB.teachers.find(function(x){return x.id===id;});return t?t.name:'-';}
+function getGrade(s){if(s>=80)return'4.0';if(s>=75)return'3.5';if(s>=70)return'3.0';if(s>=65)return'2.5';if(s>=60)return'2.0';if(s>=55)return'1.5';if(s>=50)return'1.0';return'0';}
+function gradeClass(g){var n=parseFloat(g);if(n>=3.5)return'grade-4';if(n>=2.5)return'grade-3';if(n>=1.5)return'grade-2';if(n>=1)return'grade-1';return'grade-0';}
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+function getTeacherSubjects(tcId){return[...new Set(DB.assignments.filter(function(a){return a.teacherId===tcId;}).map(function(a){return a.subjectId;}))];}
+function getAllTcCls(tcId){return[...new Set(DB.assignments.filter(function(a){return a.teacherId===tcId;}).flatMap(function(a){return a.classroomIds;}))];}
+function getCategories(tcId,subId){return DB.scoreCategories.filter(function(c){return c.teacherId===tcId&&c.subjectId===subId;});}
+function catGroupClass(g){if(g==='สอบ')return'cat-exam';if(g==='พฤติกรรม')return'cat-behavior';if(g==='งาน')return'cat-work';return'cat-other';}
+function activeE(a){return a.filter(function(x){return x.active!==false;});}
+function nxId(a){return a.length?Math.max.apply(null,a.map(function(x){return x.id;}))+1:1;}
+var stLabels={present:'มาเรียน',absent:'ขาด',late:'มาสาย',leave:'ลากิจ','leave-early':'ออกกลางคาบ'};
+var stColors={present:'st-present',absent:'st-absent',late:'st-late',leave:'st-leave','leave-early':'st-leave-early'};
+function getLevels(){return[...new Set(DB.classrooms.map(function(c){return c.level;}))].sort();}
+function isGradeVisible(studentId,subjectId){var st=DB.students.find(function(s){return s.id===studentId;});if(!st)return false;var asgn=DB.assignments.find(function(a){return a.subjectId===subjectId&&a.classroomIds.includes(st.classroomId);});return asgn?asgn.gradeVisible===true:false;}
+function getVisibleSubjectsForStudent(studentId){var st=DB.students.find(function(s){return s.id===studentId;});if(!st)return[];return DB.assignments.filter(function(a){return a.classroomIds.includes(st.classroomId)&&a.gradeVisible===true;}).map(function(a){return a.subjectId;});}
+
+/* คำนวณคะแนนรวมเฉลี่ยของนักเรียนทุกวิชา */
+function getStudentAvgScore(studentId,classroomId){
+var asgns=DB.assignments.filter(function(a){return a.classroomIds.includes(classroomId)&&a.gradeVisible===true;});
+if(!asgns.length)return 0;
+var totalW=0,totalS=0;
+asgns.forEach(function(a){
+var sc=DB.scores.find(function(s){return s.studentId===studentId&&s.subjectId===a.subjectId&&s.classroomId===classroomId;});
+var sub=DB.subjects.find(function(x){return x.id===a.subjectId;});
+var w=sub?sub.credits:1;
+if(sc){totalS+=sc.total*w;totalW+=w;}else{totalW+=w;}
+});
+return totalW>0?Math.round(totalS/totalW*100)/100:0;
+}
+
+/* AUTH */
+function togglePass(){var i=$('loginPass'),ic=$('passIcon');i.type=i.type==='password'?'text':'password';ic.className=i.type==='password'?'fas fa-eye text-sm':'fas fa-eye-slash text-sm';}
+function doLogin(){
+var u=$('loginUser').value.trim(),p=$('loginPass').value,err=$('loginError');
+var f=DB.users.find(function(x){return x.username===u&&x.password===p;});
+if(!f){err.classList.remove('hidden');err.querySelector('span').textContent='ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';return;}
+err.classList.add('hidden');ST.user=f;$('loginPage').classList.add('hidden');$('appPage').classList.remove('hidden');
+ST.page=f.role==='student'?'studentScores':'dashboard';navigate(ST.page);
+}
+function logout(){ST.user=null;$('appPage').classList.add('hidden');$('loginPage').classList.remove('hidden');$('loginUser').value='';$('loginPass').value='';}
+
+/* NAV */
+var pageTitles={dashboard:'แดชบอร์ด',subjectGroups:'จัดการกลุ่มสาระ',teachers:'จัดการครู',assignTeaching:'จัดการสอน',students:'จัดการนักเรียน',subjects:'จัดการวิชาเรียน',classrooms:'จัดการชั้นเรียน',scores:'บันทึกคะแนน',categories:'หัวข้อคะแนน',attendance:'เช็คชื่อ',reports:'รายงานสรุป',ranking:'อันดับนักเรียน',studentScores:'ดูคะแนน',studentRanking:'ดูอันดับ',gradeVisibility:'ตั้งค่าการแสดงเกรด'};
+function navigate(page){
+ST.page=page;clearBulk();Object.keys(charts).forEach(function(k){destroyChart(k);});
+renderSidebar();renderTopBar();window.scrollTo(0,0);
+var m=$('mainContent');
+var R={dashboard:renderDashboard,subjectGroups:renderSubjectGroups,teachers:renderTeachers,assignTeaching:renderAssignTeaching,students:renderStudents,subjects:renderSubjects,classrooms:renderClassrooms,scores:renderScores,categories:renderCategories,attendance:renderAttendance,reports:renderReports,ranking:renderRanking,studentScores:renderStudentScores,studentRanking:renderStudentRanking,gradeVisibility:renderGradeVisibility};
+if(R[page]){m.innerHTML=R[page]();setTimeout(function(){if(page==='dashboard')initDashCharts();if(page==='attendance')initAttPage();},50);}
+}
+
+/* SIDEBAR */
+function renderSidebar(){
+var r=ST.user.role,isA=r==='admin',isS=r==='student';
+function item(p,icon,label){return'<div class="sb-item '+(ST.page===p?'active':'')+' px-4 py-2.5 cursor-pointer text-gray-300 hover:text-white flex items-center gap-3 text-sm" onclick="navigate(\''+p+'\');closeSB()"><i class="fas '+icon+' w-5 text-center text-xs"></i><span>'+label+'</span></div>';}
+var sep='<div class="px-4 pt-3 pb-1.5 text-[10px] text-gray-500 uppercase tracking-wider">';
+var nav='';
+if(isA) nav=item('dashboard','fa-chart-pie','แดชบอร์ด')+sep+'จัดการข้อมูล</div>'+item('subjectGroups','fa-layer-group','กลุ่มสาระ')+item('teachers','fa-chalkboard-teacher','ครู')+item('assignTeaching','fa-clipboard-list','จัดการสอน')+item('students','fa-user-graduate','นักเรียน')+item('subjects','fa-book','วิชาเรียน')+item('classrooms','fa-school','ชั้นเรียน')+sep+'ตั้งค่า</div>'+item('gradeVisibility','fa-eye','การแสดงเกรด')+sep+'รายงาน</div>'+item('reports','fa-chart-bar','รายงานสรุป')+item('ranking','fa-trophy','อันดับนักเรียน');
+else if(isS) nav=item('studentScores','fa-star','ดูคะแนนของฉัน')+item('studentRanking','fa-trophy','ดูอันดับ');
+else nav=item('dashboard','fa-chart-pie','แดชบอร์ด')+item('scores','fa-pen-alt','บันทึกคะแนน')+item('categories','fa-list-check','หัวข้อคะแนน')+item('attendance','fa-clipboard-check','เช็คชื่อ')+sep+'ตั้งค่า</div>'+item('gradeVisibility','fa-eye','การแสดงเกรด')+sep+'รายงาน</div>'+item('reports','fa-chart-bar','รายงานสรุป')+item('ranking','fa-trophy','อันดับนักเรียน');
+var subInfo='ผู้ดูแลระบบ';
+if(!isA&&!isS){var tc=DB.teachers.find(function(t){return t.id===ST.user.teacherId;});subInfo=tc?tc.code+' — '+getTeacherSubjects(tc.id).map(subName).join(', '):'';}
+if(isS) subInfo=ST.user.name;
+ $('sidebar').innerHTML='<div class="px-4 py-4 flex items-center gap-2.5 border-b border-white/10"><div class="w-9 h-9 rounded-lg bg-gold-500 flex items-center justify-center text-white text-sm"><i class="fas fa-graduation-cap"></i></div><div><div class="font-display font-bold text-white text-base leading-tight">EduScore</div><div class="text-gray-400 text-[10px] leading-tight mt-0.5" style="max-width:160px" title="'+subInfo+'">'+subInfo+'</div></div></div><nav class="flex-1 py-2">'+nav+'</nav><div class="px-4 py-3 border-t border-white/10"><div class="flex items-center gap-2 text-gray-400 text-xs mb-2"><div class="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center"><i class="fas fa-user text-[10px]"></i></div><div class="truncate max-w-[140px]">'+ST.user.name+'</div></div><button onclick="logout()" class="w-full flex items-center gap-2 text-gray-400 hover:text-red-400 text-xs transition-colors px-2 py-1.5 rounded-lg hover:bg-white/5"><i class="fas fa-sign-out-alt w-5 text-center"></i> ออกจากระบบ</button></div>';
+}
+function openSB(){$('sidebar').classList.add('open');$('sidebarBackdrop').classList.add('show');}
+function closeSB(){$('sidebar').classList.remove('open');$('sidebarBackdrop').classList.remove('show');}
+
+var clockTimer;
+function renderTopBar(){
+if(clockTimer)clearInterval(clockTimer);
+ $('topBar').innerHTML='<div class="flex items-center gap-2 sm:gap-3 min-w-0"><button onclick="openSB()" class="lg:hidden text-gray-500 text-lg flex-shrink-0"><i class="fas fa-bars"></i></button><h1 class="font-display text-base sm:text-xl font-bold truncate">'+(pageTitles[ST.page]||'')+'</h1></div><div class="flex items-center gap-2 sm:gap-4 flex-shrink-0"><span id="liveClock" class="clock-display"></span><span class="text-xs sm:text-sm hidden sm:inline" style="color:var(--muted)"><i class="far fa-calendar-alt mr-1"></i>'+new Date().toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'})+'</span></div>';
+function tick(){var el=$('liveClock');if(el)el.textContent=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+tick();clockTimer=setInterval(tick,1000);
+}
+
+/* MODAL / TOAST / CONFIRM */
+var modalSaveFn=null;
+function showModal(title,body,onSave,saveLabel){
+modalSaveFn=onSave;
+ $('modalOv').querySelector('.modal-ct').innerHTML='<div class="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b" style="border-color:var(--border)"><h3 class="font-display font-bold text-base sm:text-lg pr-2">'+title+'</h3><button onclick="hideModal()" class="text-gray-400 hover:text-gray-600 text-lg flex-shrink-0"><i class="fas fa-times"></i></button></div>'+body+'<div class="flex justify-end gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 border-t" style="border-color:var(--border)"><button onclick="hideModal()" class="btn btn-o">ยกเลิก</button><button onclick="if(modalSaveFn)modalSaveFn()" class="btn btn-p"><i class="fas fa-save"></i> '+(saveLabel||'บันทึก')+'</button></div>';
+ $('modalOv').classList.remove('hidden');
+}
+function showConfirm(msg,fn){
+ $('modalOv').querySelector('.modal-ct').innerHTML='<div class="p-5 sm:p-6 text-center"><div class="w-14 h-14 rounded-full bg-red-50 text-red-500 flex items-center justify-center text-2xl mx-auto mb-3"><i class="fas fa-exclamation-triangle"></i></div><h3 class="font-display font-bold text-base sm:text-lg mb-2">ยืนยันการดำเนินการ</h3><p class="text-sm" style="color:var(--muted)">'+msg+'</p></div><div class="flex justify-center gap-3 px-4 sm:px-6 py-3 sm:py-4 border-t" style="border-color:var(--border)"><button onclick="hideModal()" class="btn btn-o">ยกเลิก</button><button id="cfmBtn" class="btn btn-d"><i class="fas fa-check"></i> ยืนยัน</button></div>';
+ $('cfmBtn').onclick=function(){hideModal();fn();};$('modalOv').classList.remove('hidden');
+}
+function hideModal(){$('modalOv').classList.add('hidden');modalSaveFn=null;}
+function showToast(msg,type){type=type||'success';var c={success:'bg-teal-500',error:'bg-red-500',info:'bg-blue-500'},ic={success:'fa-check-circle',error:'fa-exclamation-circle',info:'fa-info-circle'};var d=document.createElement('div');d.className='toast '+c[type]+' text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 text-xs sm:text-sm font-semibold';d.innerHTML='<i class="fas '+ic[type]+'"></i><span>'+msg+'</span>';$('toastBox').appendChild(d);setTimeout(function(){d.remove();},3200);}
+
+/* BULK */
+function updateBulk(type){var cbs=document.querySelectorAll('.bulk-cb:checked');var ids=new Set([...cbs].map(function(c){return +c.value;}));ST.bulk={type:type,ids:ids};var bar=$('bulkBar');var gvOn=$('bulkGvOn'),gvOff=$('bulkGvOff');if(gvOn)gvOn.style.display=type==='assignments'?'inline-flex':'none';if(gvOff)gvOff.style.display=type==='assignments'?'inline-flex':'none';if(ids.size){bar.classList.remove('hidden');$('bulkCount').textContent=ids.size+' รายการ';}else bar.classList.add('hidden');}
+function clearBulk(){ST.bulk.ids.clear();document.querySelectorAll('.bulk-cb').forEach(function(c){c.checked=false;});$('bulkBar').classList.add('hidden');}
+function toggleAllBulk(el,type){document.querySelectorAll('.bulk-cb[data-type="'+type+'"]').forEach(function(c){c.checked=el.checked;});updateBulk(type);}
+function bulkAction(action){
+var type=ST.bulk.type,ids=ST.bulk.ids;if(!ids.size)return;
+if(action==='delete'){showConfirm('ลบ '+ids.size+' รายการที่เลือก?',function(){if(type==='assignments'){[...ids].forEach(function(id){var a=DB.assignments.find(function(x){return x.id===id;});if(a){DB.scoreCategories=DB.scoreCategories.filter(function(c){return !(c.teacherId===a.teacherId&&c.subjectId===a.subjectId);});DB.scores=DB.scores.filter(function(s){return !(s.teacherId===a.teacherId&&s.subjectId===a.subjectId);});DB.attendance=DB.attendance.filter(function(at){return !(at.teacherId===a.teacherId&&at.subjectId===a.subjectId);});}});DB.assignments=DB.assignments.filter(function(a){return !ids.has(a.id);});}else if(type==='teachers'){[...ids].forEach(function(id){DB.assignments=DB.assignments.filter(function(a){return a.teacherId!==id;});DB.scoreCategories=DB.scoreCategories.filter(function(c){return c.teacherId!==id;});DB.scores=DB.scores.filter(function(s){return s.teacherId!==id;});DB.attendance=DB.attendance.filter(function(a){return a.teacherId!==id;});DB.users=DB.users.filter(function(u){return u.teacherId!==id;});});DB.teachers=DB.teachers.filter(function(t){return !ids.has(t.id);});}else if(type==='subjects'){[...ids].forEach(function(id){DB.assignments=DB.assignments.filter(function(a){return a.subjectId!==id;});DB.scoreCategories=DB.scoreCategories.filter(function(c){return c.subjectId!==id;});DB.scores=DB.scores.filter(function(s){return s.subjectId!==id;});DB.attendance=DB.attendance.filter(function(a){return a.subjectId!==id;});});DB.subjects=DB.subjects.filter(function(s){return !ids.has(s.id);});}else if(type==='students'){[...ids].forEach(function(id){DB.scores=DB.scores.filter(function(s){return s.studentId!==id;});DB.attendance.forEach(function(a){a.records=a.records.filter(function(r){return r.studentId!==id;});});DB.users=DB.users.filter(function(u){return u.studentId!==id;});});DB.students=DB.students.filter(function(s){return !ids.has(s.id);});}else if(type==='classrooms'){[...ids].forEach(function(id){DB.scores=DB.scores.filter(function(s){return s.classroomId!==id;});DB.attendance=DB.attendance.filter(function(a){return a.classroomId!==id;});DB.assignments.forEach(function(a){a.classroomIds=a.classroomIds.filter(function(c){return c!==id;});});DB.students.forEach(function(s){if(s.classroomId===id)s.classroomId=null;});});DB.classrooms=DB.classrooms.filter(function(c){return !ids.has(c.id);});}else if(type==='subjectGroups'){DB.subjectGroups=DB.subjectGroups.filter(function(g){return !ids.has(g.id);});}showToast('ลบ '+ids.size+' รายการสำเร็จ');navigate(ST.page);});}
+else if(action==='gradeOn'||action==='gradeOff'){var v=action==='gradeOn';DB.assignments.filter(function(a){return ids.has(a.id);}).forEach(function(a){a.gradeVisible=v;});showToast((v?'เปิด':'ปิด')+'การแสดงเกรด '+ids.size+' รายการสำเร็จ');navigate(ST.page);}
+else{var v=action==='enable';var arr=type==='teachers'?DB.teachers:type==='students'?DB.students:type==='subjects'?DB.subjects:type==='classrooms'?DB.classrooms:type==='subjectGroups'?DB.subjectGroups:DB.assignments;arr.filter(function(x){return ids.has(x.id);}).forEach(function(x){x.active=v;});showToast((v?'เปิด':'ปิด')+' '+ids.size+' รายการสำเร็จ');navigate(ST.page);}
+}
+function toggleEntity(type,id){var arr=type==='teachers'?DB.teachers:type==='students'?DB.students:type==='subjects'?DB.subjects:type==='classrooms'?DB.classrooms:DB.subjectGroups;var item=arr.find(function(x){return x.id===id;});if(item)item.active=!item.active;navigate(ST.page);}
+
+/* CSV */
+function openCSVModal(type){var fmt={teachers:'รหัสครู,ชื่อครู,กลุ่มสาระID\nT006,ครูใหม่,1',students:'เลขประจำตัว,ชื่อ,เลขที่,ชั้น/ห้อง\nM101006,นักเรียนใหม่,6,ม.1/1',subjects:'ชื่อวิชา,รหัส,หน่วยกิต,กลุ่มสาระID,ระดับชั้น(คั่น|)\nฟิสิกส์,PHY601,3,2,ม.2|ม.3'};var lbl={teachers:'ครู',students:'นักเรียน',subjects:'วิชา'};showModal('นำเข้า'+lbl[type]+' (CSV)','<div class="p-4 sm:p-6 space-y-3"><div class="bg-gray-50 rounded-lg p-3"><p class="text-xs font-semibold mb-1">รูปแบบ:</p><pre class="text-[11px] whitespace-pre-wrap" style="color:var(--muted)">'+fmt[type]+'</pre></div><div><label class="block text-xs font-semibold mb-1">วางข้อมูล</label><textarea id="csvData" class="csv-area"></textarea></div></div>',function(){importCSV(type);});}
+function importCSV(type){var raw=$('csvData').value.trim();if(!raw){showToast('วางข้อมูลก่อน','error');return;}var lines=raw.split('\n').map(function(l){return l.trim();}).filter(function(l){return l;});var cnt=0;lines.forEach(function(line,i){if(i===0&&/[a-zA-Zก-๙]/.test(line.split(',')[0]))return;var c=line.split(',').map(function(x){return x.trim();});if(type==='teachers'&&c.length>=3){var code=c[0],n=c[1],gid=+c[2];if(!n||!gid||!code)return;if(DB.teachers.find(function(t){return t.code===code;}))return;DB.teachers.push({id:nxId(DB.teachers),code:code,name:n,active:true,groupId:gid});cnt++;}else if(type==='students'&&c.length>=4){var sid=c[0],n=c[1],num=+c[2],cls=DB.classrooms.find(function(x){return clsName(x.id)===c[3];});if(!cls||!n||!num||!sid)return;if(DB.students.find(function(s){return s.studentId===sid;}))return;DB.students.push({id:nxId(DB.students),studentId:sid,name:n,classroomId:cls.id,number:num,active:true});cnt++;}else if(type==='subjects'&&c.length>=4){var n=c[0],code=c[1].toUpperCase(),cr=+c[2],gid=+c[3],lvs=(c[4]||'').split('|').map(function(x){return x.trim();}).filter(Boolean);if(!n||!code||!cr||!gid||!lvs.length)return;DB.subjects.push({id:nxId(DB.subjects),name:n,code:code,active:true,credits:cr,groupId:gid,levels:lvs});cnt++;}});if(cnt){showToast('นำเข้า '+cnt+' รายการสำเร็จ');hideModal();navigate(ST.page);}else showToast('ไม่สามารถนำเข้าได้','error');}
+
+function statCard(icon,label,value,unit,color){return'<div class="bg-white rounded-xl shadow-sm p-3 sm:p-4 card-h"><div class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl '+color+' flex items-center justify-center text-sm sm:text-lg mb-2 sm:mb-3"><i class="fas '+icon+'"></i></div><div class="text-xl sm:text-2xl font-display font-bold">'+value+(unit?'<span class="text-xs sm:text-sm font-normal ml-1" style="color:var(--muted)">'+unit+'</span>':'')+'</div><div class="text-xs sm:text-sm mt-0.5" style="color:var(--muted)">'+label+'</div></div>';}
+
+/* =================== SUBJECT GROUPS =================== */
+function renderSubjectGroups(){return'<div class="pg-in"><div class="flex flex-wrap justify-between items-center mb-4 gap-2 no-print"><p class="text-xs sm:text-sm" style="color:var(--muted)">จัดการกลุ่มสาระการเรียนรู้</p><button class="btn btn-p btn-sm" onclick="openGroupModal()"><i class="fas fa-plus"></i> เพิ่มกลุ่มสาระ</button></div><div class="bg-white rounded-xl shadow-sm overflow-x-auto"><table class="dt w-full"><thead><tr><th style="width:36px" class="no-print"><input type="checkbox" onchange="toggleAllBulk(this,\'subjectGroups\')"></th><th>ชื่อกลุ่มสาระ</th><th>วิชา</th><th>ครู</th><th>สถานะ</th><th class="no-print">จัดการ</th></tr></thead><tbody>'+DB.subjectGroups.map(function(g){var sc=DB.subjects.filter(function(s){return s.groupId===g.id;}).length;var tc=DB.teachers.filter(function(t){return t.groupId===g.id;}).length;return'<tr class="'+(g.active===false?'inactive':'')+'"><td class="no-print"><input type="checkbox" class="bulk-cb" data-type="subjectGroups" value="'+g.id+'" onchange="updateBulk(\'subjectGroups\')"></td><td class="font-semibold">'+g.name+'</td><td>'+sc+'</td><td>'+tc+'</td><td><label class="toggle"><input type="checkbox" '+(g.active!==false?'checked':'')+' onchange="toggleEntity(\'subjectGroups\','+g.id+')"><span class="sl"></span></label></td><td class="flex gap-1 no-print"><button class="btn btn-o btn-sm" onclick="openGroupModal('+g.id+')"><i class="fas fa-edit"></i></button><button class="btn btn-d btn-sm" onclick="showConfirm(\'ลบกลุ่มสาระนี้?\',function(){DB.subjectGroups=DB.subjectGroups.filter(function(x){return x.id!=='+g.id+';});showToast(\'ลบสำเร็จ\');navigate(\'subjectGroups\');})"><i class="fas fa-trash"></i></button></td></tr>';}).join('')+'</tbody></table></div></div>';}
+function openGroupModal(id){var g=id?DB.subjectGroups.find(function(x){return x.id===id;}):null;showModal(g?'แก้ไขกลุ่มสาระ':'เพิ่มกลุ่มสาระ','<div class="p-4 sm:p-6 space-y-3"><div><label class="block text-xs font-semibold mb-1">ชื่อกลุ่มสาระการเรียนรู้</label><input id="mGrpN" class="fi" value="'+(g?g.name:'')+'"></div></div>',function(){var n=$('mGrpN').value.trim();if(!n){showToast('กรอกชื่อ','error');return;}if(id){DB.subjectGroups.find(function(x){return x.id===id;}).name=n;}else{DB.subjectGroups.push({id:nxId(DB.subjectGroups),name:n,active:true});}showToast(id?'แก้ไขสำเร็จ':'เพิ่มสำเร็จ');hideModal();navigate('subjectGroups');});}
+
+/* =================== TEACHERS =================== */
+function renderTeachers(){return'<div class="pg-in"><div class="flex flex-wrap justify-between items-center mb-4 gap-2 no-print"><p class="text-xs sm:text-sm" style="color:var(--muted)">จัดการข้อมูลครู</p><div class="flex gap-2"><button class="btn btn-o btn-sm" onclick="openCSVModal(\'teachers\')"><i class="fas fa-file-csv"></i><span class="hidden sm:inline"> นำเข้า</span></button><button class="btn btn-p btn-sm" onclick="openTeacherModal()"><i class="fas fa-plus"></i> เพิ่มครู</button></div></div><div class="bg-white rounded-xl shadow-sm overflow-x-auto"><table class="dt w-full min-w-[600px]"><thead><tr><th style="width:36px" class="no-print"><input type="checkbox" onchange="toggleAllBulk(this,\'teachers\')"></th><th>รหัสครู</th><th>ชื่อ-นามสกุล</th><th>กลุ่มสาระ</th><th>วิชาที่สอน</th><th>สถานะ</th><th class="no-print">จัดการ</th></tr></thead><tbody>'+DB.teachers.map(function(t){var subs=getTeacherSubjects(t.id);return'<tr class="'+(t.active===false?'inactive':'')+'"><td class="no-print"><input type="checkbox" class="bulk-cb" data-type="teachers" value="'+t.id+'" onchange="updateBulk(\'teachers\')"></td><td><span class="font-mono font-bold text-teal-600 bg-teal-50 px-2 py-0.5 rounded">'+t.code+'</span></td><td class="font-semibold whitespace-nowrap">'+t.name+'</td><td><span class="cat-badge cat-exam">'+sgShort(t.groupId)+'</span></td><td>'+(subs.length?subs.map(function(s){return'<span class="cat-badge cat-work mr-1 mb-1">'+subName(s)+'</span>';}).join(''):'<span class="text-xs text-gray-400">ยังไม่มี</span>')+'</td><td><label class="toggle"><input type="checkbox" '+(t.active!==false?'checked':'')+' onchange="toggleEntity(\'teachers\','+t.id+')"><span class="sl"></span></label></td><td class="flex gap-1 no-print"><button class="btn btn-o btn-sm" onclick="openTeacherModal('+t.id+')"><i class="fas fa-edit"></i></button><button class="btn btn-d btn-sm" onclick="deleteTeacher('+t.id+')"><i class="fas fa-trash"></i></button></td></tr>';}).join('')+'</tbody></table></div></div>';}
+function openTeacherModal(id){var t=id?DB.teachers.find(function(x){return x.id===id;}):null;showModal(t?'แก้ไขครู':'เพิ่มครู','<div class="p-4 sm:p-6 space-y-3"><div><label class="block text-xs font-semibold mb-1">รหัสครู</label><input id="mTcC" class="fi" value="'+(t?t.code:'')+'"></div><div><label class="block text-xs font-semibold mb-1">ชื่อ-นามสกุล</label><input id="mTcN" class="fi" value="'+(t?t.name:'')+'"></div><div><label class="block text-xs font-semibold mb-1">กลุ่มสาระ</label><select id="mTcG" class="fs">'+DB.subjectGroups.map(function(g){return'<option value="'+g.id+'" '+(t&&t.groupId===g.id?'selected':'')+'>'+g.name+'</option>';}).join('')+'</select></div></div>',function(){var code=$('mTcC').value.trim(),n=$('mTcN').value.trim(),g=+$('mTcG').value;if(!code||!n){showToast('กรอกข้อมูลให้ครบ','error');return;}if(!id&&DB.teachers.find(function(t){return t.code===code;})){showToast('รหัสซ้ำ','error');return;}if(id){var tc=DB.teachers.find(function(x){return x.id===id;});tc.code=code;tc.name=n;tc.groupId=g;}else{DB.teachers.push({id:nxId(DB.teachers),code:code,name:n,active:true,groupId:g});}showToast(id?'แก้ไขสำเร็จ':'เพิ่มสำเร็จ');hideModal();navigate('teachers');});}
+function deleteTeacher(id){showConfirm('ลบครูนี้?',function(){DB.assignments=DB.assignments.filter(function(a){return a.teacherId!==id;});DB.scoreCategories=DB.scoreCategories.filter(function(c){return c.teacherId!==id;});DB.scores=DB.scores.filter(function(s){return s.teacherId!==id;});DB.attendance=DB.attendance.filter(function(a){return a.teacherId!==id;});DB.users=DB.users.filter(function(u){return u.teacherId!==id;});DB.teachers=DB.teachers.filter(function(t){return t.id!==id;});showToast('ลบสำเร็จ');navigate('teachers');});}
+
+/* =================== ASSIGN TEACHING =================== */
+function renderAssignTeaching(){var sel=ST.assignSel;var tcs=activeE(DB.teachers);var cls=activeE(DB.classrooms);var subs=activeE(DB.subjects);function clsOpts(){return'<div class="chk-grid mt-2">'+cls.map(function(c){return'<label><input type="checkbox" value="'+c.id+'" '+(sel.clsIds.has(c.id)?'checked':'')+' onchange="toggleAssignCls('+c.id+')"> '+clsName(c.id)+'</label>';}).join('')+'</div>';}return'<div class="pg-in grid grid-cols-1 lg:grid-cols-3 gap-4"><div class="panel-card lg:col-span-1 no-print"><div class="panel-header"><i class="fas fa-chalkboard-teacher text-teal-500"></i> เลือกครู / วิชา / ห้อง</div><div class="panel-body space-y-3"><div><label class="block text-xs font-semibold mb-1">ครู</label><select id="asgnTc" class="fs" onchange="onAssignTcChange()"><option value="">-- เลือกครู --</option>'+tcs.map(function(t){return'<option value="'+t.id+'" '+(sel.tcId===t.id?'selected':'')+'>'+t.code+' — '+t.name+'</option>';}).join('')+'</select></div><div><label class="block text-xs font-semibold mb-1">วิชา</label><select id="asgnSub" class="fs" onchange="onAssignSubChange()"><option value="">-- เลือกวิชา --</option>'+subs.map(function(s){return'<option value="'+s.id+'" '+(sel.subId===s.id?'selected':'')+'>'+s.code+' — '+s.name+'</option>';}).join('')+'</select></div><div><label class="block text-xs font-semibold mb-1">ห้องเรียน</label>'+clsOpts()+'</div><button class="btn btn-p w-full justify-center mt-3" onclick="saveAssignment()"><i class="fas fa-save"></i> บันทึกการจัดสอน</button></div></div><div class="panel-card lg:col-span-2"><div class="panel-header"><i class="fas fa-list text-gold-500"></i> รายการจัดสอนทั้งหมด ('+DB.assignments.length+')</div><div class="panel-body" style="max-height:65vh"><table class="dt w-full min-w-[500px]"><thead><tr><th class="no-print" style="width:36px"><input type="checkbox" onchange="toggleAllBulk(this,\'assignments\')"></th><th>วิชา</th><th>รหัส</th><th>ครู</th><th>ห้อง</th><th>เกรด</th><th class="no-print">จัดการ</th></tr></thead><tbody>'+DB.assignments.map(function(a){return'<tr><td class="no-print"><input type="checkbox" class="bulk-cb" data-type="assignments" value="'+a.id+'" onchange="updateBulk(\'assignments\')"></td><td class="font-semibold">'+subName(a.subjectId)+'</td><td><span class="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">'+subCode(a.subjectId)+'</span></td><td>'+tcName(a.teacherId)+'</td><td>'+a.classroomIds.map(clsName).join(', ')+'</td><td>'+(a.gradeVisible?'<span class="gv-on">แสดง</span>':'<span class="gv-off">ซ่อน</span>')+'</td><td class="no-print"><button class="btn btn-d btn-sm" onclick="showConfirm(\'ลบรายการจัดสอนนี้?\',function(){removeAsgn('+a.id+');})"><i class="fas fa-trash"></i></button></td></tr>';}).join('')+'</tbody></table></div></div></div>';}
+function onAssignTcChange(){ST.assignSel.tcId=+$('asgnTc').value||null;ST.assignSel.clsIds.clear();renderAssignTeaching();}
+function onAssignSubChange(){ST.assignSel.subId=+$('asgnSub').value||null;renderAssignTeaching();}
+function toggleAssignCls(id){if(ST.assignSel.clsIds.has(id))ST.assignSel.clsIds.delete(id);else ST.assignSel.clsIds.add(id);renderAssignTeaching();}
+function saveAssignment(){var s=ST.assignSel;if(!s.tcId||!s.subId||!s.clsIds.size){showToast('เลือกครู วิชา และห้องให้ครบ','error');return;}var exists=DB.assignments.find(function(a){return a.teacherId===s.tcId&&a.subjectId===s.subId;});if(exists){exists.classroomIds=[...s.clsIds];showToast('อัปเดตห้องเรียนสำเร็จ');}else{DB.assignments.push({id:nxId(DB.assignments),teacherId:s.tcId,subjectId:s.subId,classroomIds:[...s.clsIds],gradeVisible:true});showToast('เพิ่มการจัดสอนสำเร็จ');}ST.assignSel={tcId:null,subId:null,clsIds:new Set()};navigate('assignTeaching');}
+function removeAsgn(id){var a=DB.assignments.find(function(x){return x.id===id;});if(a){DB.scoreCategories=DB.scoreCategories.filter(function(c){return !(c.teacherId===a.teacherId&&c.subjectId===a.subjectId);});DB.scores=DB.scores.filter(function(s){return !(s.teacherId===a.teacherId&&s.subjectId===a.subjectId);});DB.attendance=DB.attendance.filter(function(at){return !(at.teacherId===a.teacherId&&at.subjectId===a.subjectId);});}DB.assignments=DB.assignments.filter(function(x){return x.id!==id;});showToast('ลบสำเร็จ');navigate('assignTeaching');}
+
+/* =================== STUDENTS =================== */
+function renderStudents(){var lv=ST.filter.stuLevel||'';var cls=activeE(DB.classrooms);if(lv)cls=cls.filter(function(c){return c.level===lv;});return'<div class="pg-in"><div class="flex flex-wrap justify-between items-center mb-4 gap-2 no-print"><div class="flex items-center gap-2"><p class="text-xs sm:text-sm" style="color:var(--muted)">นักเรียนทั้งหมด '+DB.students.length+' คน</p><select class="fs" style="width:auto;min-width:100px" onchange="ST.filter.stuLevel=this.value;navigate(\'students\')"><option value="">ทุกระดับ</option>'+getLevels().map(function(l){return'<option value="'+l+'" '+(lv===l?'selected':'')+'>'+l+'</option>';}).join('')+'</select></div><div class="flex gap-2"><button class="btn btn-o btn-sm" onclick="openCSVModal(\'students\')"><i class="fas fa-file-csv"></i><span class="hidden sm:inline"> นำเข้า</span></button><button class="btn btn-p btn-sm" onclick="openStudentModal()"><i class="fas fa-plus"></i> เพิ่มนักเรียน</button></div></div><div class="bg-white rounded-xl shadow-sm overflow-x-auto"><table class="dt w-full min-w-[500px]"><thead><tr><th style="width:36px" class="no-print"><input type="checkbox" onchange="toggleAllBulk(this,\'students\')"></th><th>เลขที่</th><th>เลขประจำตัว</th><th>ชื่อ-นามสกุล</th><th>ชั้น/ห้อง</th><th>สถานะ</th><th class="no-print">จัดการ</th></tr></thead><tbody>'+cls.flatMap(function(c){return activeE(DB.students.filter(function(s){return s.classroomId===c.id;})).map(function(s,i){return'<tr class="'+(s.active===false?'inactive':'')+'"><td class="no-print"><input type="checkbox" class="bulk-cb" data-type="students" value="'+s.id+'" onchange="updateBulk(\'students\')"></td><td>'+(i+1)+'</td><td><span class="font-mono font-bold text-teal-600 bg-teal-50 px-2 py-0.5 rounded">'+s.studentId+'</span></td><td class="font-semibold">'+s.name+'</td><td><span class="cat-badge cat-work">'+clsName(c.id)+'</span></td><td><label class="toggle"><input type="checkbox" '+(s.active!==false?'checked':'')+' onchange="toggleEntity(\'students\','+s.id+')"><span class="sl"></span></label></td><td class="flex gap-1 no-print"><button class="btn btn-o btn-sm" onclick="openStudentModal('+s.id+')"><i class="fas fa-edit"></i></button><button class="btn btn-d btn-sm" onclick="showConfirm(\'ลบนักเรียนนี้?\',function(){DB.scores=DB.scores.filter(function(x){return x.studentId!=='+s.id+';});DB.attendance.forEach(function(a){a.records=a.records.filter(function(r){return r.studentId!=='+s.id+';});});DB.users=DB.users.filter(function(u){return u.studentId!=='+s.id+';});DB.students=DB.students.filter(function(x){return x.id!=='+s.id+';});showToast(\'ลบสำเร็จ\');navigate(\'students\');})"><i class="fas fa-trash"></i></button></td></tr>';});}).join('')+'</tbody></table></div></div>';}
+function openStudentModal(id){var s=id?DB.students.find(function(x){return x.id===id;}):null;var cls=activeE(DB.classrooms);showModal(s?'แก้ไขนักเรียน':'เพิ่มนักเรียน','<div class="p-4 sm:p-6 space-y-3"><div><label class="block text-xs font-semibold mb-1">เลขประจำตัว</label><input id="mStSid" class="fi" value="'+(s?s.studentId:'')+'"></div><div><label class="block text-xs font-semibold mb-1">ชื่อ-นามสกุล</label><input id="mStN" class="fi" value="'+(s?s.name:'')+'"></div><div><label class="block text-xs font-semibold mb-1">เลขที่</label><input id="mStNum" type="number" class="fi" value="'+(s?s.number:'')+'" style="width:100px"></div><div><label class="block text-xs font-semibold mb-1">ชั้น/ห้อง</label><select id="mStCls" class="fs">'+cls.map(function(c){return'<option value="'+c.id+'" '+(s&&s.classroomId===c.id?'selected':'')+'>'+clsName(c.id)+'</option>';}).join('')+'</select></div></div>',function(){var sid=$('mStSid').value.trim(),n=$('mStN').value.trim(),num=+$('mStNum').value,ci=+$('mStCls').value;if(!sid||!n||!num){showToast('กรอกข้อมูลให้ครบ','error');return;}if(id){var st=DB.students.find(function(x){return x.id===id;});st.studentId=sid;st.name=n;st.number=num;st.classroomId=ci;}else{DB.students.push({id:nxId(DB.students),studentId:sid,name:n,classroomId:ci,number:num,active:true});}showToast(id?'แก้ไขสำเร็จ':'เพิ่มสำเร็จ');hideModal();navigate('students');});}
+
+/* =================== SUBJECTS =================== */
+function renderSubjects(){return'<div class="pg-in"><div class="flex flex-wrap justify-between items-center mb-4 gap-2 no-print"><p class="text-xs sm:text-sm" style="color:var(--muted)">จัดการวิชาเรียน</p><div class="flex gap-2"><button class="btn btn-o btn-sm" onclick="openCSVModal(\'subjects\')"><i class="fas fa-file-csv"></i><span class="hidden sm:inline"> นำเข้า</span></button><button class="btn btn-p btn-sm" onclick="openSubjectModal()"><i class="fas fa-plus"></i> เพิ่มวิชา</button></div></div><div class="bg-white rounded-xl shadow-sm overflow-x-auto"><table class="dt w-full min-w-[600px]"><thead><tr><th style="width:36px" class="no-print"><input type="checkbox" onchange="toggleAllBulk(this,\'subjects\')"></th><th>รหัสวิชา</th><th>ชื่อวิชา</th><th>กลุ่มสาระ</th><th>หน่วยกิต</th><th>ระดับชั้น</th><th>สถานะ</th><th class="no-print">จัดการ</th></tr></thead><tbody>'+DB.subjects.map(function(s){return'<tr class="'+(s.active===false?'inactive':'')+'"><td class="no-print"><input type="checkbox" class="bulk-cb" data-type="subjects" value="'+s.id+'" onchange="updateBulk(\'subjects\')"></td><td><span class="font-mono font-bold text-teal-600 bg-teal-50 px-2 py-0.5 rounded">'+s.code+'</span></td><td class="font-semibold">'+s.name+'</td><td><span class="cat-badge cat-exam">'+sgShort(s.groupId)+'</span></td><td>'+s.credits+'</td><td>'+s.levels.join(', ')+'</td><td><label class="toggle"><input type="checkbox" '+(s.active!==false?'checked':'')+' onchange="toggleEntity(\'subjects\','+s.id+')"><span class="sl"></span></label></td><td class="flex gap-1 no-print"><button class="btn btn-o btn-sm" onclick="openSubjectModal('+s.id+')"><i class="fas fa-edit"></i></button><button class="btn btn-d btn-sm" onclick="showConfirm(\'ลบวิชานี้?\',function(){DB.assignments=DB.assignments.filter(function(a){return a.subjectId!=='+s.id+';});DB.subjects=DB.subjects.filter(function(x){return x.id!=='+s.id+';});showToast(\'ลบสำเร็จ\');navigate(\'subjects\');})"><i class="fas fa-trash"></i></button></td></tr>';}).join('')+'</tbody></table></div></div>';}
+function openSubjectModal(id){var s=id?DB.subjects.find(function(x){return x.id===id;}):null;showModal(s?'แก้ไขวิชา':'เพิ่มวิชา','<div class="p-4 sm:p-6 space-y-3"><div><label class="block text-xs font-semibold mb-1">รหัสวิชา</label><input id="mSubC" class="fi" value="'+(s?s.code:'')+'"></div><div><label class="block text-xs font-semibold mb-1">ชื่อวิชา</label><input id="mSubN" class="fi" value="'+(s?s.name:'')+'"></div><div class="grid grid-cols-2 gap-3"><div><label class="block text-xs font-semibold mb-1">หน่วยกิต</label><input id="mSubCr" type="number" class="fi" value="'+(s?s.credits:'3')+'"></div><div><label class="block text-xs font-semibold mb-1">กลุ่มสาระ</label><select id="mSubG" class="fs">'+DB.subjectGroups.map(function(g){return'<option value="'+g.id+'" '+(s&&s.groupId===g.id?'selected':'')+'>'+sgShort(g.id)+'</option>';}).join('')+'</select></div></div><div><label class="block text-xs font-semibold mb-1">ระดับชั้น (คั่นด้วย |)</label><input id="mSubL" class="fi" value="'+(s?s.levels.join('|'):'ม.1|ม.2|ม.3')+'"></div></div>',function(){var code=$('mSubC').value.trim().toUpperCase(),n=$('mSubN').value.trim(),cr=+$('mSubCr').value,g=+$('mSubG').value,lvs=$('mSubL').value.split('|').map(function(x){return x.trim();}).filter(Boolean);if(!code||!n){showToast('กรอกข้อมูลให้ครบ','error');return;}if(id){var sub=DB.subjects.find(function(x){return x.id===id;});sub.code=code;sub.name=n;sub.credits=cr;sub.groupId=g;sub.levels=lvs;}else{DB.subjects.push({id:nxId(DB.subjects),code:code,name:n,active:true,credits:cr,groupId:g,levels:lvs});}showToast(id?'แก้ไขสำเร็จ':'เพิ่มสำเร็จ');hideModal();navigate('subjects');});}
+
+/* =================== CLASSROOMS =================== */
+function renderClassrooms(){return'<div class="pg-in"><div class="flex flex-wrap justify-between items-center mb-4 gap-2 no-print"><p class="text-xs sm:text-sm" style="color:var(--muted)">จัดการชั้นเรียน</p><button class="btn btn-p btn-sm" onclick="openClassroomModal()"><i class="fas fa-plus"></i> เพิ่มชั้นเรียน</button></div><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">'+DB.classrooms.map(function(c){var cnt=activeE(DB.students.filter(function(s){return s.classroomId===c.id;})).length;return'<div class="bg-white rounded-xl shadow-sm p-4 card-h '+(c.active===false?'opacity-40':'')+'"><div class="flex justify-between items-start mb-3"><div><h3 class="font-display font-bold text-lg">'+c.level+'/'+c.room+'</h3><p class="text-xs" style="color:var(--muted)">นักเรียน '+cnt+' คน</p></div><label class="toggle"><input type="checkbox" '+(c.active!==false?'checked':'')+' onchange="toggleEntity(\'classrooms\','+c.id+')"><span class="sl"></span></label></div><div class="flex gap-1 no-print"><button class="btn btn-o btn-sm" onclick="openClassroomModal('+c.id+')"><i class="fas fa-edit"></i></button><button class="btn btn-d btn-sm" onclick="showConfirm(\'ลบห้องนี้?\',function(){DB.classrooms=DB.classrooms.filter(function(x){return x.id!=='+c.id+';});showToast(\'ลบสำเร็จ\');navigate(\'classrooms\');})"><i class="fas fa-trash"></i></button></div></div>';}).join('')+'</div></div>';}
+function openClassroomModal(id){var c=id?DB.classrooms.find(function(x){return x.id===id;}):null;showModal(c?'แก้ไขชั้นเรียน':'เพิ่มชั้นเรียน','<div class="p-4 sm:p-6 space-y-3"><div><label class="block text-xs font-semibold mb-1">ระดับชั้น</label><select id="mClsL" class="fs"><option value="ม.1" '+(c&&c.level==='ม.1'?'selected':'')+'>ม.1</option><option value="ม.2" '+(c&&c.level==='ม.2'?'selected':'')+'>ม.2</option><option value="ม.3" '+(c&&c.level==='ม.3'?'selected':'')+'>ม.3</option><option value="ม.4" '+(c&&c.level==='ม.4'?'selected':'')+'>ม.4</option><option value="ม.5" '+(c&&c.level==='ม.5'?'selected':'')+'>ม.5</option><option value="ม.6" '+(c&&c.level==='ม.6'?'selected':'')+'>ม.6</option></select></div><div><label class="block text-xs font-semibold mb-1">ห้องเลขที่</label><input id="mClsR" class="fi" value="'+(c?c.room:'')+'" style="width:100px"></div></div>',function(){var l=$('mClsL').value,r=$('mClsR').value.trim();if(!r){showToast('กรอกเลขห้อง','error');return;}if(id){var cl=DB.classrooms.find(function(x){return x.id===id;});cl.level=l;cl.room=r;}else{DB.classrooms.push({id:nxId(DB.classrooms),level:l,room:r,active:true});}showToast(id?'แก้ไขสำเร็จ':'เพิ่มสำเร็จ');hideModal();navigate('classrooms');});}
+
+/* =================== SCORES (ครูบันทึกคะแนน) =================== */
+function renderScores(){
+var tcId=ST.user.teacherId;var subs=getTeacherSubjects(tcId);var clsList=getAllTcCls(tcId);
+var fCls=ST.filter.scoreCls||'';var fSub=ST.filter.scoreSub||'';
+var filteredCls=fCls?clsList.filter(function(c){return c===+fCls;}):clsList;
+if(!subs.length)return'<div class="pg-in text-center py-16"><i class="fas fa-clipboard-list text-4xl text-gray-300 mb-3"></i><p class="text-gray-400">ยังไม่มีวิชาที่จัดสอน</p></div>';
+var selSub=fSub?+fSub:subs[0];
+var cats=getCategories(tcId,selSub);
+var html='<div class="pg-in no-print"><div class="filter-bar"><label>ห้อง:</label><select onchange="ST.filter.scoreCls=this.value;navigate(\'scores\')"><option value="">ทุกห้อง</option>'+clsList.map(function(c){return'<option value="'+c+'" '+(fCls==c?'selected':'')+'>'+clsName(c)+'</option>';}).join('')+'</select><label>วิชา:</label><select onchange="ST.filter.scoreSub=this.value;navigate(\'scores\')">'+subs.map(function(s){return'<option value="'+s+'" '+(selSub===s?'selected':'')+'>'+subCode(s)+' — '+subName(s)+'</option>';}).join('')+'</select><button class="btn btn-p btn-sm ml-auto" onclick="saveAllScores()"><i class="fas fa-save"></i> บันทึกทั้งหมด</button></div></div>';
+filteredCls.forEach(function(clsId){
+var sts=activeE(DB.students.filter(function(s){return s.classroomId===clsId;}));
+html+='<div class="mb-4"><div class="bg-white rounded-xl shadow-sm overflow-x-auto"><div class="px-3 py-2 font-display font-bold text-sm border-b" style="border-color:var(--border)"><i class="fas fa-users text-teal-500 mr-1"></i> '+clsName(clsId)+' <span class="font-normal text-xs" style="color:var(--muted)">('+subCode(selSub)+' '+subName(selSub)+')</span></div><table class="dt w-full"><thead><tr><th>เลข</th><th>ชื่อ</th>'+cats.map(function(c){return'<th><span class="cat-badge '+catGroupClass(c.group)+'">'+c.name+'</span><br><span class="font-normal text-[10px]">'+c.maxScore+' คะแนน</span></th>';}).join('')+'<th>รวม</th><th>เกรด</th></tr></thead><tbody>'+sts.map(function(st){var sc=DB.scores.find(function(s){return s.studentId===st.id&&s.subjectId===selSub&&s.classroomId===clsId;});var total=sc?sc.total:0;return'<tr><td>'+st.number+'</td><td class="font-semibold whitespace-nowrap">'+st.name+'</td>'+cats.map(function(c){var v=sc?sc.scores[c.id]||0:0;return'<td><input class="si '+(c.isBehavior?'behavior':'')+'" type="number" min="'+(c.isBehavior?'-20':'0')+'" max="'+c.maxScore+'" value="'+v+'" data-sid="'+st.id+'" data-cid="'+c.id+'" data-cls="'+clsId+'" onchange="onScoreInput(this)"></td>';}).join('')+'<td class="font-bold '+(total>=80?'grade-4':total>=60?'grade-3':total>=50?'grade-2':'grade-0')+'">'+total.toFixed(2)+'</td><td class="'+gradeClass(getGrade(total))+'">'+getGrade(total)+'</td></tr>';}).join('')+'</tbody></table></div></div>';
+});
+return html;
+}
+function onScoreInput(el){var sid=+el.dataset.sid,cid=+el.dataset.cid,clsId=+el.dataset.cls;var sc=DB.scores.find(function(s){return s.studentId===sid&&s.classroomId===clsId;});if(sc){sc.scores[cid]=+el.value||0;sc.total=calcTotal(sc.teacherId,sc.subjectId,sc.scores);}var row=el.closest('tr');var total=sc?sc.total:0;var cells=row.querySelectorAll('td');var totalCell=cells[cells.length-2];var gradeCell=cells[cells.length-1];totalCell.className='font-bold '+(total>=80?'grade-4':total>=60?'grade-3':total>=50?'grade-2':'grade-0');totalCell.textContent=total.toFixed(2);gradeCell.className=gradeClass(getGrade(total));gradeCell.textContent=getGrade(total);}
+function saveAllScores(){showToast('บันทึกคะแนนทั้งหมดสำเร็จ');}
+
+/* =================== CATEGORIES =================== */
+function renderCategories(){var tcId=ST.user.teacherId;var subs=getTeacherSubjects(tcId);var cats=DB.scoreCategories.filter(function(c){return c.teacherId===tcId;});return'<div class="pg-in"><div class="flex flex-wrap justify-between items-center mb-4 gap-2 no-print"><p class="text-xs sm:text-sm" style="color:var(--muted)">หัวข้อคะแนนของคุณ</p><button class="btn btn-p btn-sm" onclick="openCatModal()"><i class="fas fa-plus"></i> เพิ่มหัวข้อ</button></div>'+subs.map(function(subId){var sc=cats.filter(function(c){return c.subjectId===subId;});if(!sc.length)return'';return'<div class="bg-white rounded-xl shadow-sm mb-3 overflow-x-auto"><div class="px-3 py-2 font-display font-bold text-sm border-b" style="border-color:var(--border)"><i class="fas fa-book text-gold-500 mr-1"></i> '+subCode(subId)+' — '+subName(subId)+'</div><table class="dt w-full"><thead><tr><th>หัวข้อ</th><th>กลุ่ม</th><th>คะแนนเต็ม</th><th>น้ำหนัก</th><th>พฤติกรรม</th><th class="no-print">จัดการ</th></tr></thead><tbody>'+sc.map(function(c){return'<tr><td class="font-semibold">'+c.name+'</td><td><span class="cat-badge '+catGroupClass(c.group)+'">'+c.group+'</span></td><td>'+c.maxScore+'</td><td>'+c.weight+'%</td><td>'+(c.isBehavior?'<span class="cat-badge cat-behavior">ใช่</span>':'<span class="text-gray-400">-</span>')+'</td><td class="flex gap-1 no-print"><button class="btn btn-o btn-sm" onclick="openCatModal('+c.id+')"><i class="fas fa-edit"></i></button><button class="btn btn-d btn-sm" onclick="showConfirm(\'ลบหัวข้อนี้?\',function(){DB.scoreCategories=DB.scoreCategories.filter(function(x){return x.id!=='+c.id+';});showToast(\'ลบสำเร็จ\');navigate(\'categories\');})"><i class="fas fa-trash"></i></button></td></tr>';}).join('')+'</tbody></table></div>';}).join('')+'</div>';}
+function openCatModal(id){var c=id?DB.scoreCategories.find(function(x){return x.id===id;}):null;var tcId=ST.user.teacherId;var subs=getTeacherSubjects(tcId);showModal(c?'แก้ไขหัวข้อ':'เพิ่มหัวข้อ','<div class="p-4 sm:p-6 space-y-3"><div><label class="block text-xs font-semibold mb-1">วิชา</label><select id="mCatSub" class="fs" '+(c?'disabled':'')+'>'+subs.map(function(s){return'<option value="'+s+'" '+(c&&c.subjectId===s?'selected':'')+'>'+subCode(s)+' — '+subName(s)+'</option>';}).join('')+'</select></div><div><label class="block text-xs font-semibold mb-1">ชื่อหัวข้อ</label><input id="mCatN" class="fi" value="'+(c?c.name:'')+'"></div><div class="grid grid-cols-3 gap-3"><div><label class="block text-xs font-semibold mb-1">กลุ่ม</label><select id="mCatG" class="fs"><option value="สอบ" '+(c&&c.group==='สอบ'?'selected':'')+'>สอบ</option><option value="งาน" '+(c&&c.group==='งาน'?'selected':'')+'>งาน</option><option value="พฤติกรรม" '+(c&&c.group==='พฤติกรรม'?'selected':'')+'>พฤติกรรม</option></select></div><div><label class="block text-xs font-semibold mb-1">คะแนนเต็ม</label><input id="mCatM" type="number" class="fi" value="'+(c?c.maxScore:'100')+'"></div><div><label class="block text-xs font-semibold mb-1">น้ำหนัก %</label><input id="mCatW" type="number" class="fi" value="'+(c?c.weight:'10')+'"></div></div><div><label class="flex items-center gap-2 text-sm"><input type="checkbox" id="mCatB" '+(c&&c.isBehavior?'checked':'')+'> เป็นคะแนนพฤติกรรม (คำนวณจากเช็คชื่อ)</label></div></div>',function(){var subId=+$('mCatSub').value,n=$('mCatN').value.trim(),g=$('mCatG').value,m=+$('mCatM').value,w=+$('mCatW').value,b=$('mCatB').checked;if(!n){showToast('กรอกชื่อหัวข้อ','error');return;}if(id){var cat=DB.scoreCategories.find(function(x){return x.id===id;});cat.name=n;cat.group=g;cat.maxScore=m;cat.weight=w;cat.isBehavior=b;}else{DB.scoreCategories.push({id:nxId(DB.scoreCategories),teacherId:tcId,subjectId:subId,name:n,group:g,maxScore:m,isBehavior:b,weight:w});}showToast(id?'แก้ไขสำเร็จ':'เพิ่มสำเร็จ');hideModal();navigate('categories');});}
+
+/* =================== ATTENDANCE =================== */
+function renderAttendance(){var tcId=ST.user.teacherId;var asgns=DB.assignments.filter(function(a){return a.teacherId===tcId;});return'<div class="pg-in" id="attPage"><div class="filter-bar no-print"><label>วิชา:</label><select id="attSub" onchange="onAttSubChange()"><option value="">-- เลือก --</option>'+asgns.map(function(a){return'<option value="'+a.subjectId+'">'+subCode(a.subjectId)+' — '+subName(a.subjectId)+'</option>';}).join('')+'</select><label>ห้อง:</label><select id="attCls" onchange="onAttClsChange()"><option value="">-- เลือก --</option></select><label>วันที่:</label><input id="attDate" type="date" class="fi" style="width:auto;min-width:150px" onchange="loadAttData()"><label>คาบ:</label><select id="attPeriod" class="fs" style="width:auto;min-width:70px"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select><button class="btn btn-p btn-sm ml-auto" onclick="saveAttData()"><i class="fas fa-save"></i> บันทึก</button></div><div id="attBody"><div class="text-center py-12 text-gray-400"><i class="fas fa-clipboard-check text-3xl mb-2"></i><p>เลือกวิชาและห้องเรียน</p></div></div></div>';}
+function initAttPage(){$('attDate').value=new Date().toISOString().split('T')[0];}
+function onAttSubChange(){var subId=+$('attSub').value;var tcId=ST.user.teacherId;var asgn=DB.assignments.find(function(a){return a.teacherId===tcId&&a.subjectId===subId;});var sel=$('attCls');sel.innerHTML='<option value="">-- เลือก --</option>'+(asgn?asgn.classroomIds.map(function(c){return'<option value="'+c+'">'+clsName(c)+'</option>';}).join(''):'');$('attBody').innerHTML='<div class="text-center py-12 text-gray-400"><p>เลือกห้องเรียน</p></div>';}
+function onAttClsChange(){loadAttData();}
+function loadAttData(){var subId=+$('attSub').value,clsId=+$('attCls').value,date=$('attDate').value,period=+$('attPeriod').value;if(!subId||!clsId||!date)return;var tcId=ST.user.teacherId;var sts=activeE(DB.students.filter(function(s){return s.classroomId===clsId;}));var existing=DB.attendance.find(function(a){return a.teacherId===tcId&&a.subjectId===subId&&a.classroomId===clsId&&a.date===date&&a.period===period;});var btnCls={present:'bg-green-100 text-green-700 att-btn',absent:'bg-red-100 text-red-700 att-btn',late:'bg-orange-100 text-orange-700 att-btn',leave:'bg-blue-100 text-blue-700 att-btn','leave-early':'bg-yellow-100 text-yellow-700 att-btn'};var html='<div class="bg-white rounded-xl shadow-sm overflow-x-auto"><div class="px-3 py-2 font-display font-bold text-sm border-b" style="border-color:var(--border)"><i class="fas fa-calendar-check text-teal-500 mr-1"></i> '+clsName(clsId)+' — '+subCode(subId)+' '+subName(subId)+' | '+date+' คาบ '+period+'</div><div class="p-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">';sts.forEach(function(st){var cur='present';if(existing){var rec=existing.records.find(function(r){return r.studentId===st.id;});if(rec)cur=rec.status;}html+='<div class="border rounded-xl p-3" style="border-color:var(--border)"><div class="font-semibold text-sm mb-2">'+st.number+'. '+st.name+'</div><div class="flex flex-wrap gap-1">';['present','absent','late','leave','leave-early'].forEach(function(s){html+='<button class="'+btnCls[s]+' '+(cur===s?'active':'')+'" data-sid="'+st.id+'" data-st="'+s+'" onclick="toggleAttBtn(this)">'+stLabels[s]+'</button>';});html+='</div></div>';});html+='</div></div>';$('attBody').innerHTML=html;}
+function toggleAttBtn(el){var card=el.closest('.border');card.querySelectorAll('.att-btn').forEach(function(b){b.classList.remove('active');});el.classList.add('active');}
+function saveAttData(){var subId=+$('attSub').value,clsId=+$('attCls').value,date=$('attDate').value,period=+$('attPeriod').value,tcId=ST.user.teacherId;if(!subId||!clsId||!date){showToast('เลือกข้อมูลให้ครบ','error');return;}var cards=document.querySelectorAll('#attBody .border');var records=[];cards.forEach(function(card){var sid=+card.querySelector('[data-sid]').dataset.sid;var btn=card.querySelector('.att-btn.active');var status=btn?btn.dataset.st:'present';var pts={present:0,absent:-2,late:-1,leave:0,'leave-early':-1};records.push({studentId:sid,status:status,points:pts[status]});});var idx=DB.attendance.findIndex(function(a){return a.teacherId===tcId&&a.subjectId===subId&&a.classroomId===clsId&&a.date===date&&a.period===period;});if(idx>=0){DB.attendance[idx].records=records;}else{DB.attendance.push({id:nxId(DB.attendance),teacherId:tcId,subjectId:subId,classroomId:clsId,date:date,period:period,records:records});}showToast('บันทึกเช็คชื่อสำเร็จ');}
+
+/* =================== GRADE VISIBILITY =================== */
+function renderGradeVisibility(){var isA=ST.user.role==='admin';var asgns=isA?DB.assignments:DB.assignments.filter(function(a){return a.teacherId===ST.user.teacherId;});return'<div class="pg-in"><div class="flex flex-wrap justify-between items-center mb-4 gap-2 no-print"><p class="text-xs sm:text-sm" style="color:var(--muted)">ตั้งค่าการแสดงเกรดต่อนักเรียน</p></div><div class="bg-white rounded-xl shadow-sm overflow-x-auto"><table class="dt w-full min-w-[500px]"><thead><tr><th class="no-print" style="width:36px"><input type="checkbox" onchange="toggleAllBulk(this,\'assignments\')"></th><th>วิชา</th><th>รหัส</th>'+(isA?'<th>ครู</th>':'')+'<th>ห้อง</th><th>สถานะ</th><th class="no-print">สลับ</th></tr></thead><tbody>'+asgns.map(function(a){return'<tr><td class="no-print"><input type="checkbox" class="bulk-cb" data-type="assignments" value="'+a.id+'" onchange="updateBulk(\'assignments\')"></td><td class="font-semibold">'+subName(a.subjectId)+'</td><td><span class="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">'+subCode(a.subjectId)+'</span></td>'+(isA?'<td>'+tcName(a.teacherId)+'</td>':'')+'<td>'+a.classroomIds.map(clsName).join(', ')+'</td><td>'+(a.gradeVisible?'<span class="gv-on">แสดง</span>':'<span class="gv-off">ซ่อน</span>')+'</td><td class="no-print"><label class="toggle"><input type="checkbox" '+(a.gradeVisible?'checked':'')+' onchange="toggleGV('+a.id+')"><span class="sl"></span></label></td></tr>';}).join('')+'</tbody></table></div></div>';}
+function toggleGV(id){var a=DB.assignments.find(function(x){return x.id===id;});if(a)a.gradeVisible=!a.gradeVisible;navigate('gradeVisibility');}
+
+/* =================== DASHBOARD =================== */
+function renderDashboard(){var isA=ST.user.role==='admin',isT=ST.user.role==='teacher';var sc1=DB.students.filter(function(s){return s.active!==false;}).length;var sc2=DB.subjects.filter(function(s){return s.active!==false;}).length;var sc3=DB.classrooms.filter(function(c){return c.active!==false;}).length;var sc4=isA?DB.teachers.filter(function(t){return t.active!==false;}).length:DB.assignments.filter(function(a){return a.teacherId===ST.user.teacherId;}).length;if(isT)return'<div class="pg-in"><div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">'+statCard('fa-user-graduate','นักเรียนที่สอน',sc1,'คน','bg-teal-100 text-teal-600')+statCard('fa-book','วิชาที่สอน',getTeacherSubjects(ST.user.teacherId).length,'วิชา','bg-blue-100 text-blue-600')+statCard('fa-school','ห้องเรียน',getAllTcCls(ST.user.teacherId).length,'ห้อง','bg-amber-100 text-amber-600')+statCard('fa-clipboard-list','การจัดสอน',sc4,'รายการ','bg-purple-100 text-purple-600')+'</div><div class="grid grid-cols-1 lg:grid-cols-2 gap-4"><div class="bg-white rounded-xl shadow-sm p-4"><h3 class="font-display font-bold mb-3"><i class="fas fa-chart-bar text-teal-500 mr-1"></i> สถิติคะแนนเฉลี่ยแต่ละห้อง</h3><canvas id="dashChart1" height="200"></canvas></div><div class="bg-white rounded-xl shadow-sm p-4"><h3 class="font-display font-bold mb-3"><i class="fas fa-chart-pie text-gold-500 mr-1"></i> การกระจายเกรด</h3><canvas id="dashChart2" height="200"></canvas></div></div></div>';return'<div class="pg-in"><div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">'+statCard('fa-user-graduate','นักเรียน',sc1,'คน','bg-teal-100 text-teal-600')+statCard('fa-chalkboard-teacher','ครู',sc4,'คน','bg-blue-100 text-blue-600')+statCard('fa-book','วิชา',sc2,'วิชา','bg-amber-100 text-amber-600')+statCard('fa-school','ห้องเรียน',sc3,'ห้อง','bg-purple-100 text-purple-600')+'</div><div class="grid grid-cols-1 lg:grid-cols-2 gap-4"><div class="bg-white rounded-xl shadow-sm p-4"><h3 class="font-display font-bold mb-3"><i class="fas fa-chart-bar text-teal-500 mr-1"></i> คะแนนเฉลี่ยแต่ละห้อง</h3><canvas id="dashChart1" height="200"></canvas></div><div class="bg-white rounded-xl shadow-sm p-4"><h3 class="font-display font-bold mb-3"><i class="fas fa-chart-doughnut text-gold-500 mr-1"></i> สัดส่วนนักเรียนแต่ละระดับชั้น</h3><canvas id="dashChart2" height="200"></canvas></div></div></div>';}
+function initDashCharts(){var isA=ST.user.role==='admin';var clsList=isA?activeE(DB.classrooms):DB.classrooms.filter(function(c){return getAllTcCls(ST.user.teacherId).includes(c.id);});var labels=clsList.map(clsName);var avgs=clsList.map(function(c){var sts=activeE(DB.students.filter(function(s){return s.classroomId===c.id;}));if(!sts.length)return 0;var t=0;sts.forEach(function(st){t+=getStudentAvgScore(st.id,c.id);});return Math.round(t/sts.length*100)/100;});var ctx1=document.getElementById('dashChart1');if(ctx1){charts.dash1=new Chart(ctx1,{type:'bar',data:{labels:labels,datasets:[{label:'คะแนนเฉลี่ย',data:avgs,backgroundColor:'rgba(14,124,107,0.7)',borderRadius:6}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100}}}});}var ctx2=document.getElementById('dashChart2');if(ctx2){var levels=isA?getLevels():[...new Set(clsList.map(function(c){return c.level;}))];var counts=levels.map(function(l){return activeE(DB.students.filter(function(s){var c=DB.classrooms.find(function(x){return x.id===s.classroomId;});return c&&c.level===l;})).length;});var colors=['#0E7C6B','#E8A317','#2563EB','#DC2626','#7C3AED','#059669'];charts.dash2=new Chart(ctx2,{type:'doughnut',data:{labels:levels,datasets:[{data:counts,backgroundColor:colors.slice(0,levels.length)}]},options:{responsive:true,plugins:{legend:{position:'bottom'}}}});}}
+
+/* =================== รายงานสรุป (Admin + ครู) =================== */
+function renderReports(){
+var isA=ST.user.role==='admin';
+var fCls=ST.filter.rptCls||'';
+var fSub=ST.filter.rptSub||'';
+var fLv=ST.filter.rptLv||'';
+var clsList=isA?activeE(DB.classrooms):DB.classrooms.filter(function(c){return getAllTcCls(ST.user.teacherId).includes(c.id);});
+if(fLv)clsList=clsList.filter(function(c){return c.level===fLv;});
+var subs=isA?activeE(DB.subjects):DB.subjects.filter(function(s){return getTeacherSubjects(ST.user.teacherId).includes(s.id);});
+var selCls=fCls?[+fCls]:clsList.map(function(c){return c.id;});
+var selSub=fSub?[+fSub]:subs.map(function(s){return s.id;});
+var now=new Date();
+var dateStr='วันที่ '+now.toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+var schoolName='โรงเรียนตัวอย่าง EduScore';
+var clsLabel=fCls?clsName(+fCls):'ทุกห้อง';
+var subLabel=fSub?(subCode(+fSub)+' '+subName(+fSub)):'ทุกวิชา';
+var lvLabel=fLv?fLv:'ทุกระดับชั้น';
+
+/* สร้างตารางรายงาน */
+var rows=[];
+selCls.forEach(function(clsId){
+var sts=activeE(DB.students.filter(function(s){return s.classroomId===clsId;}));
+sts.forEach(function(st){
+var row={name:st.name,studentId:st.studentId,number:st.number,cls:clsName(clsId),subjects:[]};
+var totalW=0,totalS=0;
+selSub.forEach(function(subId){
+var asgn=DB.assignments.find(function(a){return a.subjectId===subId&&a.classroomIds.includes(clsId)&&a.gradeVisible===true;});
+if(!asgn)return;
+var sc=DB.scores.find(function(s){return s.studentId===st.id&&s.subjectId===subId&&s.classroomId===clsId;});
+var sub=DB.subjects.find(function(x){return x.id===subId;});
+var w=sub?sub.credits:1;
+var score=sc?sc.total:0;
+row.subjects.push({code:subCode(subId),name:subName(subId),score:score,grade:getGrade(score),w:w});
+totalS+=score*w;totalW+=w;
+});
+row.avg=totalW>0?Math.round(totalS/totalW*100)/100:0;
+row.avgGrade=getGrade(row.avg);
+rows.push(row);
+});
+});
+rows.sort(function(a,b){return a.number-b.number;});
+
+/* สถิติสรุป */
+var allScores=rows.map(function(r){return r.avg;});
+var maxS=allScores.length?Math.max.apply(null,allScores):0;
+var minS=allScores.length?Math.min.apply(null,allScores):0;
+var sumS=allScores.reduce(function(a,b){return a+b;},0);
+var avgAll=allScores.length?Math.round(sumS/allScores.length*100)/100:0;
+var passCnt=allScores.filter(function(s){return s>=50;}).length;
+var passRate=allScores.length?Math.round(passCnt/allScores.length*100):0;
+
+var html='<div class="print-area">';
+/* ตัวกรอง - ซ่อนตอนพิมพ์ */
+html+='<div class="filter-bar no-print"><label>ระดับชั้น:</label><select onchange="ST.filter.rptLv=this.value;navigate(\'reports\')"><option value="">ทุกระดับ</option>'+getLevels().map(function(l){return'<option value="'+l+'" '+(fLv===l?'selected':'')+'>'+l+'</option>';}).join('')+'</select><label>ห้อง:</label><select onchange="ST.filter.rptCls=this.value;navigate(\'reports\')"><option value="">ทุกห้อง</option>'+clsList.map(function(c){return'<option value="'+c.id+'" '+(fCls==c.id?'selected':'')+'>'+clsName(c.id)+'</option>';}).join('')+'</select><label>วิชา:</label><select onchange="ST.filter.rptSub=this.value;navigate(\'reports\')"><option value="">ทุกวิชา</option>'+subs.map(function(s){return'<option value="'+s.id+'" '+(fSub==s.id?'selected':'')+'>'+subCode(s)+' — '+subName(s)+'</option>';}).join('')+'</select><button class="btn btn-a btn-sm ml-auto" onclick="window.print()"><i class="fas fa-print"></i> พิมพ์รายงาน</button></div>';
+
+/* ส่วนหัวรายงาน */
+html+='<div class="bg-white rounded-xl shadow-sm p-4 sm:p-6 mb-4"><div class="print-title">รายงานสรุปผลการเรียน</div><div class="print-sub">'+schoolName+' | '+dateStr+'</div><div class="text-xs mb-3" style="color:var(--muted)">กรอง: '+lvLabel+', '+clsLabel+', '+subLabel+' | นักเรียน '+rows.length+' คน</div>';
+
+/* สถิติสรุป */
+html+='<div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">'+statCard('fa-chart-line','ค่าเฉลี่ยรวม',avgAll,'คะแนน','bg-teal-100 text-teal-600')+statCard('fa-arrow-up','สูงสุด',maxS,'คะแนน','bg-green-100 text-green-600')+statCard('fa-arrow-down','ต่ำสุด',minS,'คะแนน','bg-red-100 text-red-600')+statCard('fa-check-circle','ผ่านเกณฑ์',passCnt,'คน','bg-blue-100 text-blue-600')+statCard('fa-percent','อัตราผ่าน',passRate,'%','bg-amber-100 text-amber-600')+'</div>';
+
+/* ตารางรายงาน */
+html+='<div class="overflow-x-auto"><table class="dt w-full"><thead><tr><th>เลข</th><th>เลขประจำตัว</th><th>ชื่อ-นามสกุล</th><th>ห้อง</th>';
+rows.length&&rows[0].subjects.forEach(function(s){html+='<th>'+s.code+'<br><span class="font-normal text-[9px]">'+s.name+'</span></th>';});
+html+='<th>เฉลี่ย</th><th>เกรด</th></tr></thead><tbody>';
+rows.forEach(function(r){
+html+='<tr><td>'+r.number+'</td><td><span class="font-mono text-xs">'+r.studentId+'</span></td><td class="font-semibold whitespace-nowrap">'+r.name+'</td><td><span class="cat-badge cat-work">'+r.cls+'</span></td>';
+r.subjects.forEach(function(s){html+='<td class="text-center"><span class="'+gradeClass(s.grade)+'">'+s.score.toFixed(1)+'</span></td>';});
+html+='<td class="font-bold text-center '+gradeClass(r.avgGrade)+'">'+r.avg.toFixed(2)+'</td><td class="font-bold text-center '+gradeClass(r.avgGrade)+'">'+r.avgGrade+'</td></tr>';
+});
+html+='</tbody></table></div></div></div>';
+return html;
+}
+
+/* =================== อันดับนักเรียน (Admin + ครู) =================== */
+function renderRanking(){
+var isA=ST.user.role==='admin';
+var fCls=ST.filter.rnkCls||'';
+var fSub=ST.filter.rnkSub||'';
+var fLv=ST.filter.rnkLv||'';
+var clsList=isA?activeE(DB.classrooms):DB.classrooms.filter(function(c){return getAllTcCls(ST.user.teacherId).includes(c.id);});
+if(fLv)clsList=clsList.filter(function(c){return c.level===fLv;});
+var subs=isA?activeE(DB.subjects):DB.subjects.filter(function(s){return getTeacherSubjects(ST.user.teacherId).includes(s.id);});
+var selCls=fCls?[+fCls]:clsList.map(function(c){return c.id;});
+var selSub=fSub?[+fSub]:subs.map(function(s){return s.id;});
+var now=new Date();
+var dateStr='วันที่ '+now.toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+var schoolName='โรงเรียนตัวอย่าง EduScore';
+var clsLabel=fCls?clsName(+fCls):'ทุกห้อง';
+var subLabel=fSub?(subCode(+fSub)+' '+subName(+fSub)):'ทุกวิชา';
+
+/* คำนวณอันดับ */
+var ranked=[];
+selCls.forEach(function(clsId){
+var sts=activeE(DB.students.filter(function(s){return s.classroomId===clsId;}));
+sts.forEach(function(st){
+var totalW=0,totalS=0;
+selSub.forEach(function(subId){
+var asgn=DB.assignments.find(function(a){return a.subjectId===subId&&a.classroomIds.includes(clsId)&&a.gradeVisible===true;});
+if(!asgn)return;
+var sc=DB.scores.find(function(s){return s.studentId===st.id&&s.subjectId===subId&&s.classroomId===clsId;});
+var sub=DB.subjects.find(function(x){return x.id===subId;});
+var w=sub?sub.credits:1;
+totalS+=(sc?sc.total:0)*w;totalW+=w;
+});
+ranked.push({name:st.name,studentId:st.studentId,number:st.number,cls:clsName(clsId),clsId:clsId,avg:totalW>0?Math.round(totalS/totalW*100)/100:0});
+});
+});
+ranked.sort(function(a,b){return b.avg-a.avg;});
+ranked.forEach(function(r,i){r.rank=i+1;});
+
+var html='<div class="print-area">';
+html+='<div class="filter-bar no-print"><label>ระดับชั้น:</label><select onchange="ST.filter.rnkLv=this.value;navigate(\'ranking\')"><option value="">ทุกระดับ</option>'+getLevels().map(function(l){return'<option value="'+l+'" '+(fLv===l?'selected':'')+'>'+l+'</option>';}).join('')+'</select><label>ห้อง:</label><select onchange="ST.filter.rnkCls=this.value;navigate(\'ranking\')"><option value="">ทุกห้อง</option>'+clsList.map(function(c){return'<option value="'+c.id+'" '+(fCls==c.id?'selected':'')+'>'+clsName(c.id)+'</option>';}).join('')+'</select><label>วิชา:</label><select onchange="ST.filter.rnkSub=this.value;navigate(\'ranking\')"><option value="">ทุกวิชา</option>'+subs.map(function(s){return'<option value="'+s.id+'" '+(fSub==s.id?'selected':'')+'>'+subCode(s)+' — '+subName(s)+'</option>';}).join('')+'</select><button class="btn btn-a btn-sm ml-auto" onclick="window.print()"><i class="fas fa-print"></i> พิมพ์อันดับ</button></div>';
+
+/* หัวรายงาน */
+html+='<div class="bg-white rounded-xl shadow-sm p-4 sm:p-6 mb-4"><div class="print-title">อันดับนักเรียน</div><div class="print-sub">'+schoolName+' | '+dateStr+'</div><div class="text-xs mb-4" style="color:var(--muted)">กรอง: '+(fLv||'ทุกระดับ')+', '+clsLabel+', '+subLabel+' | นักเรียน '+ranked.length+' คน</div>';
+
+/* ตารางอันดับ */
+html+='<div class="overflow-x-auto"><table class="dt w-full"><thead><tr><th>อันดับ</th><th>เลขประจำตัว</th><th>ชื่อ-นามสกุล</th><th>ห้อง</th><th>คะแนนเฉลี่ย</th><th>เกรด</th></tr></thead><tbody>';
+ranked.forEach(function(r){
+var rnClass=r.rank<=3?'rank-num-'+r.rank:'rank-num-n';
+var medal=r.rank===1?'<i class="fas fa-trophy text-amber-500 mr-1"></i>':r.rank===2?'<i class="fas fa-medal text-gray-400 mr-1"></i>':r.rank===3?'<i class="fas fa-medal text-orange-400 mr-1"></i>':'';
+html+='<tr><td class="text-center font-bold">'+medal+r.rank+'</td><td><span class="font-mono text-xs">'+r.studentId+'</span></td><td class="font-semibold whitespace-nowrap">'+r.name+'</td><td><span class="cat-badge cat-work">'+r.cls+'</span></td><td class="font-bold text-center '+gradeClass(getGrade(r.avg))+'">'+r.avg.toFixed(2)+'</td><td class="font-bold text-center '+gradeClass(getGrade(r.avg))+'">'+getGrade(r.avg)+'</td></tr>';
+});
+html+='</tbody></table></div></div></div>';
+return html;
+}
+
+/* =================== ดูคะแนน (Admin + ครู) — แสดงรหัสวิชา ไม่แสดงรหัสครู =================== */
+function renderStudentScores(){
+var isA=ST.user.role==='admin';
+var fCls=ST.filter.ssCls||'';
+var fSub=ST.filter.ssSub||'';
+var fLv=ST.filter.ssLv||'';
+
+var clsList=isA?activeE(DB.classrooms):DB.classrooms.filter(function(c){return getAllTcCls(ST.user.teacherId).includes(c.id);});
+if(fLv)clsList=clsList.filter(function(c){return c.level===fLv;});
+
+var subs=isA?activeE(DB.subjects):DB.subjects.filter(function(s){return getTeacherSubjects(ST.user.teacherId).includes(s.id);});
+
+var selCls=fCls?[+fCls]:clsList.map(function(c){return c.id;});
+var selSub=fSub?[+fSub]:subs.map(function(s){return s.id;});
+
+var now=new Date();
+var dateStr='วันที่ '+now.toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+var schoolName='โรงเรียนตัวอย่าง EduScore';
+
+var html='<div class="print-area">';
+html+='<div class="filter-bar no-print"><label>ระดับชั้น:</label><select onchange="ST.filter.ssLv=this.value;navigate(\'studentScores\')"><option value="">ทุกระดับ</option>'+getLevels().map(function(l){return'<option value="'+l+'" '+(fLv===l?'selected':'')+'>'+l+'</option>';}).join('')+'</select><label>ห้อง:</label><select onchange="ST.filter.ssCls=this.value;navigate(\'studentScores\')"><option value="">ทุกห้อง</option>'+clsList.map(function(c){return'<option value="'+c.id+'" '+(fCls==c.id?'selected':'')+'>'+clsName(c.id)+'</option>';}).join('')+'</select><label>วิชา:</label><select onchange="ST.filter.ssSub=this.value;navigate(\'studentScores\')"><option value="">ทุกวิชา</option>'+subs.map(function(s){return'<option value="'+s.id+'" '+(fSub==s.id?'selected':'')+'>'+subCode(s)+' — '+subName(s)+'</option>';}).join('')+'</select><button class="btn btn-a btn-sm ml-auto" onclick="window.print()"><i class="fas fa-print"></i> พิมพ์</button></div>';
+
+/* แสดงแต่ละห้อง */
+selCls.forEach(function(clsId){
+var cls=DB.classrooms.find(function(c){return c.id===clsId;});
+if(!cls)return;
+var sts=activeE(DB.students.filter(function(s){return s.classroomId===clsId;}));
+if(!sts.length)return;
+
+/* หาวิชาที่เกี่ยวข้องกับห้องนี้ */
+var relSubs=selSub.filter(function(subId){
+var asgn=DB.assignments.find(function(a){return a.subjectId===subId&&a.classroomIds.includes(clsId)&&a.gradeVisible===true;});
+return!!asgn;
+});
+
+html+='<div class="bg-white rounded-xl shadow-sm mb-4 overflow-hidden"><div class="print-title px-4 pt-4">รายงานคะแนนนักเรียน</div><div class="print-sub px-4">'+schoolName+' | '+dateStr+'</div><div class="px-4 pb-3 text-xs font-semibold" style="color:var(--muted)">ห้อง '+clsName(clsId)+(fSub?' | '+subCode(+fSub)+' '+subName(+fSub):'')+'</div>';
+html+='<div class="overflow-x-auto"><table class="dt w-full"><thead><tr><th>เลข</th><th>เลขประจำตัว</th><th>ชื่อ-นามสกุล</th>';
+relSubs.forEach(function(subId){
+html+='<th>'+subCode(subId)+'<br><span class="font-normal text-[9px]">'+subName(subId)+'</span></th>';
+});
+html+='<th>เฉลี่ย</th><th>เกรด</th></tr></thead><tbody>';
+sts.forEach(function(st){
+var totalW=0,totalS=0;
+var cells='';
+relSubs.forEach(function(subId){
+var asgn=DB.assignments.find(function(a){return a.subjectId===subId&&a.classroomIds.includes(clsId)&&a.gradeVisible===true;});
+var sc=asgn?DB.scores.find(function(s){return s.studentId===st.id&&s.subjectId===subId&&s.classroomId===clsId;}):null;
+var sub=DB.subjects.find(function(x){return x.id===subId;});
+var w=sub?sub.credits:1;
+var score=sc?sc.total:0;
+totalS+=score*w;totalW+=w;
+cells+='<td class="text-center"><span class="'+gradeClass(getGrade(score))+'">'+score.toFixed(1)+'</span></td>';
+});
+var avg=totalW>0?Math.round(totalS/totalW*100)/100:0;
+var grd=getGrade(avg);
+html+='<tr><td>'+st.number+'</td><td><span class="font-mono text-xs">'+st.studentId+'</span></td><td class="font-semibold whitespace-nowrap">'+st.name+'</td>'+cells+'<td class="font-bold text-center '+gradeClass(grd)+'">'+avg.toFixed(2)+'</td><td class="font-bold text-center '+gradeClass(grd)+'">'+grd+'</td></tr>';
+});
+html+='</tbody></table></div></div>';
+});
+html+='</div>';
+return html;
+}
+
+/* =================== ดูอันดับ (นักเรียน) — การ์ดอลังการ =================== */
+function renderStudentRanking(){
+var st=DB.students.find(function(s){return s.id===ST.user.studentId;});
+if(!st)return'<div class="text-center py-16 text-gray-400">ไม่พบข้อมูลนักเรียน</div>';
+var clsId=st.classroomId;
+var cls=DB.classrooms.find(function(c){return c.id===clsId;});
+
+/* เก็บคะแนนรวมของเพื่อนในห้อง */
+var classmates=activeE(DB.students.filter(function(s){return s.classroomId===clsId;}));
+var ranked=classmates.map(function(s){
+return{id:s.id,name:s.name,studentId:s.studentId,number:s.number,avg:getStudentAvgScore(s.id,clsId)};
+});
+ranked.sort(function(a,b){return b.avg-a.avg;});
+ranked.forEach(function(r,i){r.rank=i+1;});
+
+var myRank=ranked.find(function(r){return r.id===st.id;});
+var maxScore=ranked.length?ranked[0].avg:100;
+var now=new Date();
+var dateStr='วันที่ '+now.toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+var schoolName='โรงเรียนตัวอย่าง EduScore';
+
+var html='<div class="print-area">';
+
+/* ปุ่มพิมพ์ */
+html+='<div class="flex justify-end mb-4 no-print"><button class="btn btn-a" onclick="window.print()"><i class="fas fa-print"></i> พิมพ์อันดับ</button></div>';
+
+/* การ์ดอันดับของฉัน — แบบอลังการ */
+html+='<div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-6">';
+html+='<div class="relative overflow-hidden" style="background:linear-gradient(135deg,#1B2A4A 0%,#0E7C6B 100%);padding:24px 20px 20px">';
+/* พื้นหลังลวดลาย */
+html+='<div class="absolute inset-0 opacity-10"><div class="absolute w-32 h-32 rounded-full bg-gold-400" style="top:-20px;right:-20px"></div><div class="absolute w-24 h-24 rounded-full bg-white" style="bottom:-10px;left:10%"></div></div>';
+html+='<div class="relative text-center">';
+/* ไอคอนโลโก้ */
+html+='<div class="text-gold-400 text-3xl mb-2"><i class="fas fa-graduation-cap"></i></div>';
+html+='<div class="print-title text-white" style="font-size:16px;margin-bottom:2px">อันดับผลการเรียน</div>';
+html+='<div class="text-gray-300 text-xs mb-4">'+schoolName+' | '+dateStr+' | ห้อง '+clsName(clsId)+'</div>';
+
+/* วงกลมอันดับใหญ่ */
+var rankBg=myRank.rank===1?'background:linear-gradient(135deg,#FDE68A,#F59E0B);color:#92400E;box-shadow:0 0 30px rgba(245,158,11,0.5)':
+myRank.rank===2?'background:linear-gradient(135deg,#E2E8F0,#94A3B8);color:#334155;box-shadow:0 0 20px rgba(148,163,184,0.4)':
+myRank.rank===3?'background:linear-gradient(135deg,#FED7AA,#FB923C);color:#7C2D12;box-shadow:0 0 20px rgba(251,146,60,0.4)':
+'background:rgba(255,255,255,0.15);color:#fff;box-shadow:0 0 15px rgba(255,255,255,0.1)';
+var trophyIcon=myRank.rank<=3?'<div class="text-4xl mb-1 trophy-glow"><i class="fas fa-trophy text-gold-400"></i></div>':'';
+html+='<div class="flex flex-col items-center">'+trophyIcon+'<div class="w-24 h-24 sm:w-28 sm:h-28 rounded-full flex items-center justify-center font-display font-black text-4xl sm:text-5xl mb-2" style="'+rankBg+'">'+myRank.rank+'</div>';
+html+='<div class="text-white font-display font-bold text-lg sm:text-xl">'+st.name+'</div>';
+html+='<div class="text-gray-300 text-xs mt-1">เลขประจำตัว '+st.studentId+'</div>';
+html+='<div class="mt-3 inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-xl px-5 py-2.5"><div class="text-center"><div class="text-gold-400 font-display font-black text-2xl sm:text-3xl">'+myRank.avg.toFixed(2)+'</div><div class="text-gray-300 text-[10px]">คะแนนเฉลี่ย</div></div><div class="w-px h-8 bg-white/20"></div><div class="text-center"><div class="text-white font-display font-black text-2xl sm:text-3xl">'+getGrade(myRank.avg)+'</div><div class="text-gray-300 text-[10px]">เกรด</div></div></div>';
+html+='</div></div></div></div>';
+
+/* Podium อันดับ 1-3 */
+if(ranked.length>=3){
+html+='<div class="bg-white rounded-2xl shadow-lg p-4 sm:p-6 mb-6"><h3 class="font-display font-bold text-center mb-2 text-sm" style="color:var(--muted)"><i class="fas fa-medal text-gold-500 mr-1"></i> ผู้มีคะแนนสูงสุด 3 อันดับ</h3>';
+html+='<div class="podium-wrap">';
+/* เรียง: 2, 1, 3 */
+var order=[ranked[1],ranked[0],ranked[2]];
+var pClasses=['podium-2','podium-1','podium-3'];
+order.forEach(function(r,i){
+if(!r)return;
+var initials=r.name.split(' ').map(function(w){return w[0];}).join('').substring(0,2);
+html+='<div class="podium-col '+pClasses[i]+'"><div class="podium-avatar">'+initials+'</div><div class="podium-name">'+r.name+'</div><div class="podium-score font-bold '+gradeClass(getGrade(r.avg))+'">'+r.avg.toFixed(2)+'</div><div class="podium-block"><span class="podium-rank">#'+r.rank+'</span></div></div>';
+});
+html+='</div></div>';
+}
+
+/* รายการอันดับทั้งหมด */
+html+='<div class="bg-white rounded-2xl shadow-lg p-4 sm:p-6"><h3 class="font-display font-bold mb-3"><i class="fas fa-list-ol text-teal-500 mr-1"></i> อันดับทั้งหมด ('+ranked.length+' คน)</h3>';
+ranked.forEach(function(r){
+var isMe=r.id===st.id;
+var rnCls=r.rank<=3?'rank-num-'+r.rank:'rank-num-n';
+var barW=maxScore>0?Math.max(5,r.avg/maxScore*100):5;
+var barColor=r.rank===1?'background:linear-gradient(90deg,#FDE68A,#F59E0B)':r.rank===2?'background:linear-gradient(90deg,#E2E8F0,#94A3B8)':r.rank===3?'background:linear-gradient(90deg,#FED7AA,#FB923C)':'background:linear-gradient(90deg,#CCFBF1,#0E7C6B)';
+var meStyle=isMe?'border-color:var(--primary);background:rgba(14,124,107,0.03);box-shadow:0 2px 8px rgba(14,124,107,0.1)':'';
+var meBadge=isMe?'<span class="cat-badge" style="background:#0E7C6B;color:#fff;font-size:.65rem">ฉัน</span>':'';
+html+='<div class="rank-list-card" style="'+meStyle+'"><div class="rank-num-circle '+rnCls+'">'+r.rank+'</div><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><span class="font-semibold text-sm truncate">'+r.name+'</span>'+meBadge+'<span class="text-xs" style="color:var(--muted)">เลข '+r.number+'</span></div><div class="rank-bar"><div class="rank-bar-fill" style="width:'+barW+'%;'+barColor+'"></div></div></div><div class="text-right flex-shrink-0"><div class="font-display font-bold text-sm '+gradeClass(getGrade(r.avg))+'">'+r.avg.toFixed(2)+'</div><div class="text-[10px] '+gradeClass(getGrade(r.avg))+'">'+getGrade(r.avg)+'</div></div></div>';
+});
+html+='</div></div>';
+return html;
+}
+
+/* ส่วน print สำหรับนักเรียนดูอันดับ */
+var printStyleAdded=false;
+function addPrintStyles(){
+if(printStyleAdded)return;printStyleAdded=true;
+var s=document.createElement('style');
+s.textContent='@media print{.podium-wrap{display:flex!important;align-items:flex-end!important;justify-content:center!important;gap:16px!important;padding:16px 0!important}.podium-col{display:flex!important;flex-direction:column!important;align-items:center!important}.podium-avatar{width:50px!important;height:50px!important;border-radius:50%!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:14px!important;color:#fff!important;margin-bottom:6px!important;border:2px solid #999!important}.podium-1 .podium-avatar{background:#B8860B!important;width:60px!important;height:60px!important;font-size:16px!important}.podium-2 .podium-avatar{background:#808080!important}.podium-3 .podium-avatar{background:#CD7F32!important}.podium-name{font-size:11px!important;font-weight:700!important;text-align:center!important;margin-bottom:2px!important}.podium-score{font-size:10px!important;font-weight:600!important;margin-bottom:4px!important}.podium-block{border-radius:6px 6px 0 0!important;display:flex!important;align-items:flex-end!important;justify-content:center!important;padding-bottom:6px!important;border:2px solid #999!important;background:#f5f5f5!important}.podium-1 .podium-block{height:100px!important;min-width:90px!important;border-color:#B8860B!important;background:#FFFDE7!important}.podium-2 .podium-block{height:80px!important;min-width:85px!important;border-color:#808080!important;background:#F5F5F5!important}.podium-3 .podium-block{height:65px!important;min-width:80px!important;border-color:#CD7F32!important;background:#FFF8E1!important}.podium-rank{position:absolute!important;top:4px!important;font-size:18px!important;opacity:.3!important;color:#333!important}.rank-list-card{display:flex!important;align-items:center!important;gap:8px!important;padding:4px 0!important;border-bottom:1px dotted #ccc!important;page-break-inside:avoid!important}.rank-num-circle{width:24px!important;height:24px!important;border-radius:50%!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:10px!important;font-weight:800!important;flex-shrink:0!important;background:#eee!important;color:#333!important}.rank-bar{display:none!important}.print-title{font-family:Kanit,sans-serif!important;font-size:16px!important;font-weight:700!important;text-align:center!important;margin-bottom:2px!important;color:#000!important}.print-sub{font-size:11px!important;text-align:center!important;color:#555!important;margin-bottom:8px!important}}';
+document.head.appendChild(s);
+}
+addPrintStyles();
+
+/* INIT */
+navigate(ST.page==='studentScores'||ST.page==='studentRanking'?ST.page:'dashboard');
+</script>
+</body>
+</html>
