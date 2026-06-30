@@ -54,6 +54,16 @@
 
         const DEFAULT_MAX_PERIODS = 4;
         const DAYS = [{id: 1, name: 'จันทร์'}, {id: 2, name: 'อังคาร'}, {id: 3, name: 'พุธ'}, {id: 4, name: 'พฤหัสบดี'}, {id: 5, name: 'ศุกร์'}];
+        const PERIOD_TIMES = [
+            { period: '1', time: '08.30-09.20' },
+            { period: '2', time: '09.20-10.10' },
+            { period: '3', time: '10.10-11.00' },
+            { period: '4', time: '11.00-11.50' },
+            { period: '5', time: '13.00-13.50' },
+            { period: '6', time: '13.50-14.40' },
+            { period: '7', time: '14.40-15.30' },
+            { period: '8', time: '15.30-16.20' }
+        ];
 
         // --- Helper Functions ---
         const getWeekStart = (dateStr) => {
@@ -713,7 +723,7 @@
 
             const handleCardClick = (tab) => {
                 if (tab === 'leave' || tab === 'reports') setActiveTab(tab); 
-                else if (tab === 'admin' || tab === 'settings') {
+                else if (tab === 'admin' || tab === 'settings' || tab === 'slip') {
                     if (!isAdmin) setAuthModal({ isOpen: true, targetTab: tab }); 
                     else setActiveTab(tab);
                 } else setActiveTab(tab);
@@ -787,6 +797,9 @@
                                         <button onClick={() => setActiveTab('settings')} className={`hidden sm:flex px-3 py-1.5 rounded-lg text-sm font-medium transition-colors items-center ${activeTab === 'settings' ? 'bg-purple-100 text-purple-700' : 'text-gray-600 hover:bg-gray-100'}`}>
                                             <i className="fas fa-database mr-2"></i>ตั้งค่า
                                         </button>
+                                        <button onClick={() => setActiveTab('slip')} className={`hidden sm:flex px-3 py-1.5 rounded-lg text-sm font-medium transition-colors items-center ${activeTab === 'slip' ? 'bg-teal-100 text-teal-700' : 'text-gray-600 hover:bg-gray-100'}`}>
+                                            <i className="fas fa-file-signature mr-2"></i>ส่งสอนแทน
+                                        </button>
                                         <div className="hidden lg:block border-l h-6 mx-2 border-gray-300"></div>
                                         <div className="text-sm font-semibold text-purple-700 px-3 hidden sm:block">โหมดแอดมิน</div>
                                         <button onClick={() => { setCurrentUser(null); setActiveTab('home'); showToast('ออกจากระบบแอดมินแล้ว', 'info'); }} className="px-3 py-1.5 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 transition-colors border border-transparent hover:border-red-200" title="ออกจากระบบแอดมิน">
@@ -829,10 +842,11 @@
                             <div className="fade-in space-y-8 no-print">
                                 <div>
                                     <h2 className="text-xl font-bold text-gray-800 mb-4 border-l-4 border-blue-500 pl-3">เมนูหลัก</h2>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                                         <ActionCard icon="fa-clipboard-list" title="รายการสอนแทน" desc="ดูตารางวันนี้" borderColor="border-blue-500" textColor="text-blue-600" bgHover="hover:bg-blue-50" onClick={() => document.getElementById('today-board').scrollIntoView({ behavior: 'smooth' })} />
                                         <ActionCard icon="fa-paper-plane" title="แจ้งลางาน" desc="ขอจัดสอนแทน" borderColor="border-green-500" textColor="text-green-600" bgHover="hover:bg-green-50" onClick={() => handleCardClick('leave')} />
                                         <ActionCard icon="fa-tasks" title="จัดคนสอนแทน" desc="(แอดมิน)" borderColor="border-purple-500" textColor="text-purple-600" bgHover="hover:bg-purple-50" onClick={() => handleCardClick('admin')} />
+                                        <ActionCard icon="fa-file-signature" title="ส่งสอนแทน" desc="พิมพ์ใบบันทึก (แอดมิน)" borderColor="border-teal-500" textColor="text-teal-600" bgHover="hover:bg-teal-50" onClick={() => handleCardClick('slip')} />
                                         <ActionCard icon="fa-chart-pie" title="รายงานสรุป" desc="สถิติ (สาธารณะ)" borderColor="border-indigo-500" textColor="text-indigo-600" bgHover="hover:bg-indigo-50" onClick={() => handleCardClick('reports')} />
                                     </div>
                                 </div>
@@ -866,6 +880,13 @@
                         {activeTab === 'settings' && isAdmin && (
                             <div className="fade-in no-print">
                                 <AdminSettings db={{ sysConfig, terms, departments, grades, rooms, subjects, teachers, timetables, leaves, substituteTasks }} manageTermId={manageTermId} setManageTermId={setManageTermId} actions={dbActions} askConfirm={askConfirm} showToast={showToast} />
+                            </div>
+                        )}
+
+                        {activeTab === 'slip' && isAdmin && (
+                            <div className="fade-in space-y-4">
+                                <button onClick={() => setActiveTab('home')} className="text-gray-500 hover:text-blue-600 font-medium flex items-center mb-4 transition-colors no-print"><i className="fas fa-arrow-left mr-2"></i> กลับหน้าหลัก</button>
+                                <SubstituteSlip sysConfig={sysConfig} leaves={leaves} tasks={substituteTasks} teachers={teachers} getTeacherName={getTeacherName} currentTermId={currentTermId} selectedDate={selectedDate} setSelectedDate={setSelectedDate} showToast={showToast} />
                             </div>
                         )}
 
@@ -1218,6 +1239,166 @@
             return <canvas ref={chartRef}></canvas>;
         }
 
+        // --- ใบบันทึกการจัดสอนแทน (พิมพ์ได้ / คัดลอกได้) ---
+        function SubstituteSlip({ sysConfig, leaves, tasks, teachers, getTeacherName, currentTermId, selectedDate, setSelectedDate, showToast }) {
+            const REASON_OPTIONS = ['ไปราชการ', 'ลาป่วย', 'ลากิจ'];
+
+            const [docTitle, setDocTitle] = useState('แบบบันทึกการจัดสอนแทน');
+            const [schoolLine, setSchoolLine] = useState(sysConfig.name || 'โรงเรียนพนมรุ้ง สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาบุรีรัมย์');
+            const [toLine, setToLine] = useState('เรียน คณะครูผู้สอน');
+            const [introText, setIntroText] = useState('ด้วยวันที่ดังกล่าว มีครูโรงเรียนไม่ได้มาปฏิบัติราชการ โรงเรียนจึงทำการจัดสอนแทนดังรายการต่อไปนี้');
+            const [closingLine, setClosingLine] = useState('จึงเรียนมาเพื่อทราบและปฏิบัติ');
+            const [signerName, setSignerName] = useState('(....................................)');
+            const [signerTitle, setSignerTitle] = useState('รองผู้อำนวยการโรงเรียน');
+
+            const dayLeaves = useMemo(() => leaves.filter(l => l.date === selectedDate && l.status !== 'cancelled'), [leaves, selectedDate]);
+
+            const formatThaiDate = (dateStr) => {
+                if (!dateStr) return '';
+                const months = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+                const d = new Date(dateStr);
+                return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
+            };
+
+            const handleCopy = async () => {
+                let lines = [];
+                lines.push(docTitle);
+                lines.push(schoolLine);
+                lines.push(toLine);
+                lines.push(`วันที่ ${formatThaiDate(selectedDate)}`);
+                lines.push('');
+                dayLeaves.forEach((l, idx) => {
+                    const tasksForLeave = tasks.filter(t => t.leaveId === l.id);
+                    lines.push(`${idx + 1}. ครู ${getTeacherName(l.requesterId)} (${l.reason})`);
+                    if (tasksForLeave.length === 0) {
+                        lines.push('   - ไม่มีคาบสอนในวันนี้');
+                    } else {
+                        tasksForLeave.sort((a,b)=>parseInt(a.period)-parseInt(b.period)).forEach(t => {
+                            lines.push(`   - คาบ ${t.period} | วิชา ${t.subject} | ชั้น ${t.classGroup} | ผู้สอนแทน: ${t.assignedTo ? getTeacherName(t.assignedTo) : 'ยังไม่ได้จัด'}`);
+                        });
+                    }
+                });
+                lines.push('');
+                lines.push(closingLine);
+                const text = lines.join('\n');
+                try {
+                    await navigator.clipboard.writeText(text);
+                    showToast('คัดลอกข้อมูลใบบันทึกแล้ว');
+                } catch (e) {
+                    const ta = document.createElement('textarea');
+                    ta.value = text; document.body.appendChild(ta); ta.select();
+                    try { document.execCommand('copy'); showToast('คัดลอกข้อมูลใบบันทึกแล้ว'); }
+                    catch (err) { showToast('ไม่สามารถคัดลอกได้ กรุณาคัดลอกด้วยตนเอง', 'error'); }
+                    document.body.removeChild(ta);
+                }
+            };
+
+            return (
+                <div className="fade-in space-y-4">
+                    <div className="no-print flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                        <div className="flex items-center gap-2">
+                            <label className="text-sm font-semibold text-gray-600">วันที่จัดสอนแทน:</label>
+                            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="border border-teal-200 rounded px-2 py-1.5 text-sm bg-teal-50 text-teal-900 font-bold focus:ring-teal-500 outline-none" />
+                            <span className="text-xs text-gray-400">({dayLeaves.length} รายการ)</span>
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={handleCopy} className="bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 px-4 py-2 rounded-lg text-sm font-medium"><i className="fas fa-copy mr-2"></i>คัดลอก</button>
+                            <button onClick={() => window.print()} className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm"><i className="fas fa-print mr-2"></i>พิมพ์ / บันทึกเป็น PDF</button>
+                        </div>
+                    </div>
+
+                    <div id="printable-slip" className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 sm:p-8 max-w-5xl mx-auto">
+                        <div className="text-center mb-4">
+                            {sysConfig.logoUrl && <img src={sysConfig.logoUrl} alt="logo" className="h-16 mx-auto mb-2 object-contain" />}
+                            <input type="text" value={docTitle} onChange={e=>setDocTitle(e.target.value)} className="print-input text-lg font-bold text-center w-full bg-transparent border-none outline-none focus:ring-1 focus:ring-teal-200 rounded" />
+                            <input type="text" value={schoolLine} onChange={e=>setSchoolLine(e.target.value)} className="print-input text-sm text-center w-full bg-transparent border-none outline-none focus:ring-1 focus:ring-teal-200 rounded" />
+                        </div>
+
+                        <div className="flex justify-between items-baseline text-sm mb-2 flex-wrap gap-1">
+                            <input type="text" value={toLine} onChange={e=>setToLine(e.target.value)} className="print-input bg-transparent border-none outline-none focus:ring-1 focus:ring-teal-200 rounded flex-1 min-w-[180px]" />
+                            <span className="font-medium">วันที่ {formatThaiDate(selectedDate)}</span>
+                        </div>
+                        <textarea value={introText} onChange={e=>setIntroText(e.target.value)} rows="2" className="print-input text-sm w-full bg-transparent border-none outline-none focus:ring-1 focus:ring-teal-200 rounded mb-3 resize-none" />
+
+                        <div className="overflow-x-auto border border-gray-800">
+                            <table className="min-w-full border-collapse text-xs sm:text-sm">
+                                <thead>
+                                    <tr className="bg-gray-50">
+                                        <th rowSpan="3" className="border border-gray-800 px-2 py-1 w-10">ที่</th>
+                                        <th rowSpan="3" className="border border-gray-800 px-2 py-1 w-44">ครูที่ไม่ได้มาปฏิบัติราชการ</th>
+                                        <th rowSpan="3" className="border border-gray-800 px-2 py-1 w-20">ข้อมูล การสอนแทน</th>
+                                        <th colSpan={PERIOD_TIMES.length + 1} className="border border-gray-800 px-2 py-1">คาบที่</th>
+                                    </tr>
+                                    <tr className="bg-gray-50">
+                                        {PERIOD_TIMES.slice(0,4).map(pt => <th key={pt.period} className="border border-gray-800 px-2 py-1 w-16">{pt.period}</th>)}
+                                        <th className="border border-gray-800 px-1 py-1 w-8">พัก</th>
+                                        {PERIOD_TIMES.slice(4).map(pt => <th key={pt.period} className="border border-gray-800 px-2 py-1 w-16">{pt.period}</th>)}
+                                    </tr>
+                                    <tr className="bg-gray-50 text-[10px] sm:text-xs">
+                                        {PERIOD_TIMES.slice(0,4).map(pt => <th key={pt.period} className="border border-gray-800 px-1 py-1 font-normal">{pt.time}</th>)}
+                                        <th className="border border-gray-800 px-1 py-1"></th>
+                                        {PERIOD_TIMES.slice(4).map(pt => <th key={pt.period} className="border border-gray-800 px-1 py-1 font-normal">{pt.time}</th>)}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {dayLeaves.length === 0 && (
+                                        <tr><td colSpan={PERIOD_TIMES.length + 4} className="border border-gray-800 text-center py-6 text-gray-400">ไม่มีรายการลา/จัดสอนแทนในวันที่เลือก</td></tr>
+                                    )}
+                                    {dayLeaves.map((l, idx) => {
+                                        const tasksForLeave = tasks.filter(t => t.leaveId === l.id);
+                                        const rowLabels = ['วิชา', 'ชั้น', 'ผู้สอนแทน'];
+                                        const isOtherReason = !REASON_OPTIONS.includes(l.reason);
+                                        return rowLabels.map((label, rIdx) => (
+                                            <tr key={l.id + '-' + label}>
+                                                {rIdx === 0 && <td rowSpan="3" className="border border-gray-800 px-2 py-1 text-center align-top">{idx + 1}</td>}
+                                                {rIdx === 0 && (
+                                                    <td rowSpan="3" className="border border-gray-800 px-2 py-1 align-top">
+                                                        <div className="font-semibold">{getTeacherName(l.requesterId)}</div>
+                                                        <div className="mt-1 space-y-0.5 text-[11px]">
+                                                            {REASON_OPTIONS.map(r => (
+                                                                <div key={r} className="flex items-center gap-1">
+                                                                    <span className="inline-block w-3 h-3 border border-gray-700 text-center leading-3">{l.reason === r ? '✓' : ''}</span>
+                                                                    <span>{r}</span>
+                                                                </div>
+                                                            ))}
+                                                            <div className="flex items-center gap-1">
+                                                                <span className="inline-block w-3 h-3 border border-gray-700 text-center leading-3">{isOtherReason ? '✓' : ''}</span>
+                                                                <span>อื่นๆ {isOtherReason ? `(${l.reason})` : ''}</span>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                )}
+                                                <td className="border border-gray-800 px-2 py-1 text-center font-medium text-gray-600">{label}</td>
+                                                {PERIOD_TIMES.slice(0,4).map(pt => {
+                                                    const t = tasksForLeave.find(x => x.period === pt.period);
+                                                    return <td key={pt.period} className="border border-gray-800 px-1 py-1 text-center">{t ? (label === 'วิชา' ? t.subject : label === 'ชั้น' ? t.classGroup : (t.assignedTo ? getTeacherName(t.assignedTo) : '-')) : ''}</td>;
+                                                })}
+                                                <td className="border border-gray-800 bg-gray-50"></td>
+                                                {PERIOD_TIMES.slice(4).map(pt => {
+                                                    const t = tasksForLeave.find(x => x.period === pt.period);
+                                                    return <td key={pt.period} className="border border-gray-800 px-1 py-1 text-center">{t ? (label === 'วิชา' ? t.subject : label === 'ชั้น' ? t.classGroup : (t.assignedTo ? getTeacherName(t.assignedTo) : '-')) : ''}</td>;
+                                                })}
+                                            </tr>
+                                        ));
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <input type="text" value={closingLine} onChange={e=>setClosingLine(e.target.value)} className="print-input text-sm w-full bg-transparent border-none outline-none focus:ring-1 focus:ring-teal-200 rounded mt-4" />
+
+                        <div className="flex justify-end mt-10">
+                            <div className="text-center text-sm">
+                                <div>ลงชื่อ......................................................</div>
+                                <input type="text" value={signerName} onChange={e=>setSignerName(e.target.value)} className="print-input text-center w-full bg-transparent border-none outline-none focus:ring-1 focus:ring-teal-200 rounded mt-1" />
+                                <input type="text" value={signerTitle} onChange={e=>setSignerTitle(e.target.value)} className="print-input text-center w-full bg-transparent border-none outline-none focus:ring-1 focus:ring-teal-200 rounded" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         function ToggleSwitch({ checked, onChange, name, defaultChecked }) {
             return (
                 <label className="relative inline-flex items-center cursor-pointer mr-2">
@@ -1284,7 +1465,7 @@
                         {tab === 'room' && <SimpleCrud title="จัดการห้องเรียน" data={db.rooms} columns={[{key:'id', label:'รหัส'}, {key:'name', label:'เลขห้อง'}, {key:'grade', label:'ระดับชั้น', type:'select', options: db.grades.map(g=>g.name)}, {key:'classGroup', label:'ห้อง/ทับ'}]} onSave={actions.addRoom} onToggle={actions.toggleRoom} onDelete={actions.delRoom} askConfirm={askConfirm} />}
                         {tab === 'subj' && <SimpleCrud title="จัดการรายวิชา" data={db.subjects} columns={[{key:'id', label:'รหัสระบบ'}, {key:'code', label:'รหัสวิชา'}, {key:'name', label:'ชื่อวิชา'}, {key:'dept', label:'กลุ่มสาระฯ', type:'select', options: db.departments.map(d=>d.name)}, {key:'grade', label:'ระดับชั้น', type:'select', options: db.grades.map(g=>g.name)}, {key:'room', label:'ห้อง (เช่น 111, ทั้งหมด)'}]} onSave={actions.addSubj} onToggle={actions.toggleSubj} onDelete={actions.delSubj} askConfirm={askConfirm} showBulkDelete={true} onDeleteBulk={(ids)=>actions.delBulk('subjects', ids)} />}
                         {tab === 'teacher' && <TeacherCrud data={db.teachers} depts={db.departments.map(d=>d.name)} grades={db.grades.map(g=>g.name)} onSave={actions.addTeacher} onToggle={actions.toggleTeacher} onDelete={actions.delTeacher} onAddBulk={actions.addTeacherBulk} onDeleteBulk={actions.deleteTeacherBulk} sysConfig={db.sysConfig} showToast={showToast} askConfirm={askConfirm} />}
-                        {tab === 'timetable' && <TimetableManager manageTermId={manageTermId} termName={db.terms.find(t=>t.id===manageTermId)?.name} teachers={db.teachers.filter(t=>t.role==='teacher' && t.isActive)} timetables={db.timetables} subjects={db.subjects.filter(s=>s.isActive)} rooms={db.rooms.filter(r=>r.isActive)} updateTimetable={actions.updateTimetable} onAddBulk={actions.addTimetableBulk} onDeleteBulk={actions.deleteTimetableBulk} showToast={showToast} askConfirm={askConfirm} />}
+                        {tab === 'timetable' && <TimetableManager manageTermId={manageTermId} termName={db.terms.find(t=>t.id===manageTermId)?.name} teachers={db.teachers.filter(t=>t.role==='teacher' && t.isActive)} timetables={db.timetables} subjects={db.subjects.filter(s=>s.isActive)} rooms={db.rooms.filter(r=>r.isActive)} addTimetableSlot={actions.addTimetableSlot} delTimetableSlot={actions.delTimetableSlot} onAddBulk={actions.addTimetableBulk} onDeleteBulk={actions.deleteTimetableBulk} showToast={showToast} askConfirm={askConfirm} />}
                     </div>
                 </div>
             );
@@ -1728,9 +1909,10 @@
         };
 
         const TimetableManager = ({ manageTermId, termName, teachers, timetables, subjects, rooms, addTimetableSlot, delTimetableSlot, onAddBulk, onDeleteBulk, showToast, askConfirm }) => {
-            const [viewMode, setViewMode] = useState('individual'); 
+            const [viewMode, setViewMode] = useState('grid'); 
             const [selTeacher, setSelTeacher] = useState(''); 
             const [selDay, setSelDay] = useState(1);
+            const [addCell, setAddCell] = useState(null); // { day, period } currently open for adding in grid mode
             
             // Search and Sort State for List View
             const [searchTerm, setSearchTerm] = useState('');
@@ -1807,6 +1989,17 @@
                 addTimetableSlot(manageTermId, selTeacher, selDay, slotData); e.target.reset();
             };
 
+            const addSlotInGrid = (day, period, e) => {
+                e.preventDefault(); const fd = new FormData(e.target);
+                const subjId = fd.get('subject'); const roomId = fd.get('room');
+                const daySlots = (timetables[manageTermId]?.[selTeacher]?.[day]) || [];
+                if (daySlots.some(s => s.period === period)) { showToast('คาบนี้มีสอนแล้ว กรุณาลบของเดิมก่อน', 'error'); setAddCell(null); return; }
+                const subjObj = subjects.find(s=>s.id === subjId); const roomObj = rooms.find(r=>r.id === roomId);
+                const slotData = { period, subjectId: subjId, roomId: roomId, subject: subjObj.name, targetDept: subjObj.dept, targetGrade: roomObj.grade, classGroup: roomObj.classGroup, room: roomObj.name };
+                addTimetableSlot(manageTermId, selTeacher, day, slotData);
+                setAddCell(null);
+            };
+
             const delSlot = (period) => {
                 delTimetableSlot(manageTermId, selTeacher, selDay, period);
             };
@@ -1881,10 +2074,74 @@
                         </div>
                     </div>
 
-                    <div className="flex gap-2 mb-4 border-b pb-2">
-                        <button onClick={()=>setViewMode('individual')} className={`px-4 py-2 text-sm font-medium rounded-t-lg ${viewMode==='individual' ? 'bg-white border-t border-l border-r border-gray-200 text-purple-700 -mb-[9px]' : 'text-gray-500 hover:bg-gray-100'}`}>เพิ่ม/ลบ รายบุคคล</button>
+                    <div className="flex gap-2 mb-4 border-b pb-2 flex-wrap">
+                        <button onClick={()=>setViewMode('grid')} className={`px-4 py-2 text-sm font-medium rounded-t-lg ${viewMode==='grid' ? 'bg-white border-t border-l border-r border-gray-200 text-purple-700 -mb-[9px]' : 'text-gray-500 hover:bg-gray-100'}`}><i className="fas fa-table mr-1"></i>ตารางสอนจริง (รายสัปดาห์)</button>
+                        <button onClick={()=>setViewMode('individual')} className={`px-4 py-2 text-sm font-medium rounded-t-lg ${viewMode==='individual' ? 'bg-white border-t border-l border-r border-gray-200 text-purple-700 -mb-[9px]' : 'text-gray-500 hover:bg-gray-100'}`}>เพิ่ม/ลบ รายวัน (เร็ว)</button>
                         <button onClick={()=>setViewMode('list')} className={`px-4 py-2 text-sm font-medium rounded-t-lg ${viewMode==='list' ? 'bg-white border-t border-l border-r border-gray-200 text-purple-700 -mb-[9px]' : 'text-gray-500 hover:bg-gray-100'}`}>มุมมองตารางรวม (ลบหลายรายการ)</button>
                     </div>
+
+                    {viewMode === 'grid' && (
+                        <div className="pt-2">
+                            <div className="flex gap-4 mb-6"><select className="border rounded-lg p-2 w-full sm:w-1/2" value={selTeacher} onChange={e=>{setSelTeacher(e.target.value); setAddCell(null);}}><option value="">-- เลือกครูผู้สอนเพื่อจัดตารางจริง --</option>{teachers.map(t=><option key={t.id} value={t.id}>{t.name} ({t.id})</option>)}</select></div>
+                            {selTeacher ? (
+                                <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+                                    <div className="p-4 bg-purple-50 border-b font-semibold text-purple-800 flex items-center justify-between flex-wrap gap-2">
+                                        <span>ตารางสอนจริงทั้งสัปดาห์: {teachers.find(t=>t.id===selTeacher)?.name}</span>
+                                        <span className="text-xs font-normal text-purple-600"><i className="fas fa-info-circle mr-1"></i>คลิกที่ช่องว่างเพื่อเพิ่มคาบ คลิก <i className="fas fa-times text-red-400"></i> เพื่อลบ</span>
+                                    </div>
+                                    <div className="overflow-x-auto custom-scrollbar">
+                                        <table className="min-w-full border-collapse">
+                                            <thead>
+                                                <tr className="bg-gray-100">
+                                                    <th className="border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 w-28">คาบ / เวลา</th>
+                                                    {DAYS.map(d => <th key={d.id} className="border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 min-w-[160px]">วัน{d.name}</th>)}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {PERIOD_TIMES.map(pt => (
+                                                    <tr key={pt.period}>
+                                                        <td className="border border-gray-200 px-3 py-2 bg-gray-50 text-center">
+                                                            <div className="font-bold text-indigo-600">คาบ {pt.period}</div>
+                                                            <div className="text-[11px] text-gray-400">{pt.time}</div>
+                                                        </td>
+                                                        {DAYS.map(d => {
+                                                            const daySlots = (timetables[manageTermId]?.[selTeacher]?.[d.id]) || [];
+                                                            const slot = daySlots.find(s => s.period === pt.period);
+                                                            const isAdding = addCell && addCell.day === d.id && addCell.period === pt.period;
+                                                            return (
+                                                                <td key={d.id} className="border border-gray-200 p-1 align-top">
+                                                                    {slot ? (
+                                                                        <div className="relative bg-indigo-50 border border-indigo-200 rounded-lg p-2 h-full min-h-[64px]">
+                                                                            <button onClick={() => delTimetableSlot(manageTermId, selTeacher, d.id, slot.period)} className="absolute top-1 right-1 text-red-400 hover:text-red-600 p-1" title="ลบคาบนี้"><i className="fas fa-times"></i></button>
+                                                                            <div className="font-medium text-sm text-gray-800 pr-4 truncate">{slot.subject}</div>
+                                                                            <div className="text-xs text-gray-500 mt-1"><span className="bg-indigo-100 px-1 rounded text-indigo-700 mr-1">{slot.classGroup}</span>{slot.room}</div>
+                                                                        </div>
+                                                                    ) : isAdding ? (
+                                                                        <form onSubmit={(e)=>addSlotInGrid(d.id, pt.period, e)} className="bg-yellow-50 border border-yellow-300 rounded-lg p-2 space-y-1.5 min-h-[64px]">
+                                                                            <select name="subject" required autoFocus className="w-full border rounded p-1 text-xs"><option value="">-- วิชา --</option>{subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>
+                                                                            <select name="room" required className="w-full border rounded p-1 text-xs"><option value="">-- ห้อง --</option>{rooms.map(r=><option key={r.id} value={r.id}>{r.name} ({r.classGroup})</option>)}</select>
+                                                                            <div className="flex gap-1">
+                                                                                <button type="submit" className="flex-1 bg-purple-600 text-white text-xs py-1 rounded hover:bg-purple-700">เพิ่ม</button>
+                                                                                <button type="button" onClick={()=>setAddCell(null)} className="flex-1 bg-gray-200 text-xs py-1 rounded hover:bg-gray-300">ยกเลิก</button>
+                                                                            </div>
+                                                                        </form>
+                                                                    ) : (
+                                                                        <button onClick={() => setAddCell({ day: d.id, period: pt.period })} className="w-full h-full min-h-[64px] flex items-center justify-center text-gray-300 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors">
+                                                                            <i className="fas fa-plus"></i>
+                                                                        </button>
+                                                                    )}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            ) : <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-300 text-gray-500">กรุณาเลือกครูผู้สอนเพื่อดูและจัดตารางสอนจริงทั้งสัปดาห์</div>}
+                        </div>
+                    )}
 
                     {viewMode === 'individual' && (
                         <div className="pt-2">
