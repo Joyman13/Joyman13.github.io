@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th"> 
+<html lang="th">
 <head> 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,6 +18,7 @@
     
     <!-- Chart.js for Reports -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <script>
         Babel.registerPreset('react-classic', { presets: [[Babel.availablePresets['react'], { runtime: 'classic' }]] });
@@ -524,6 +525,118 @@
                         if (flatTimetables.length > 0) await syncToSheets('batchDelete', 'timetables', flatTimetables, `ล้างข้อมูลเดิม ตารางสอน...`);
                         if (newItems.length > 0) await syncToSheets('batchUpsert', 'timetables', newItems, `กำลังกู้คืน ตารางสอน...`);
                     }
+                },
+
+                // ปรุงฐานข้อมูล: ตรวจสอบและปรับปรุงข้อมูลทั้งหมดให้สัมพันธ์กันโดยอัตโนมัติ
+                repairDatabase: async () => {
+                    const result = { fixedSlots: 0, removedSlots: 0, fixedTasks: 0, removedTasks: 0, removedLeaves: 0, fixedTeachers: 0 };
+
+                    const teacherIds = new Set(teachers.map(t => t.id));
+                    const subjectMap = {}; subjects.forEach(s => subjectMap[s.id] = s);
+                    const roomMap = {}; rooms.forEach(r => roomMap[r.id] = r);
+                    const deptNames = new Set(departments.map(d => d.name));
+                    const gradeNames = new Set(grades.map(g => g.name));
+                    const termIds = new Set(terms.map(t => t.id));
+
+                    // 1) ตรวจสอบ/ซ่อมตารางสอน (timetables)
+                    const newTimetables = {};
+                    const timetableUpserts = [];
+                    const timetableDeleteIds = [];
+                    Object.keys(timetables).forEach(termId => {
+                        const termValid = termIds.has(termId);
+                        if (termValid) newTimetables[termId] = {};
+                        Object.keys(timetables[termId]).forEach(teacherId => {
+                            const teacherValid = termValid && teacherIds.has(teacherId);
+                            if (teacherValid) newTimetables[termId][teacherId] = {};
+                            Object.keys(timetables[termId][teacherId]).forEach(day => {
+                                const daySlots = timetables[termId][teacherId][day] || [];
+                                if (!teacherValid) {
+                                    daySlots.forEach(slot => { timetableDeleteIds.push(`${termId}_${teacherId}_${day}_${slot.period}`); result.removedSlots++; });
+                                    return;
+                                }
+                                const fixedSlots = [];
+                                daySlots.forEach(slot => {
+                                    const subjObj = subjectMap[slot.subjectId];
+                                    const roomObj = roomMap[slot.roomId];
+                                    if (!subjObj || !roomObj) {
+                                        timetableDeleteIds.push(`${termId}_${teacherId}_${day}_${slot.period}`);
+                                        result.removedSlots++;
+                                        return;
+                                    }
+                                    const fixedSlot = { period: slot.period, subjectId: slot.subjectId, roomId: slot.roomId, subject: subjObj.name, targetDept: subjObj.dept, targetGrade: roomObj.grade, classGroup: roomObj.classGroup, room: roomObj.name };
+                                    if (JSON.stringify(fixedSlot) !== JSON.stringify(slot)) {
+                                        result.fixedSlots++;
+                                        timetableUpserts.push({ id: `${termId}_${teacherId}_${day}_${slot.period}`, termId, teacherId, day: parseInt(day), data: fixedSlot });
+                                    }
+                                    fixedSlots.push(fixedSlot);
+                                });
+                                if (teacherValid && fixedSlots.length > 0) newTimetables[termId][teacherId][day] = fixedSlots;
+                            });
+                        });
+                    });
+
+                    // 2) ตรวจสอบ/ซ่อมข้อมูลการลา (leaves) - ลบรายการที่อ้างอิงครูซึ่งถูกลบไปแล้ว
+                    const newLeaves = [];
+                    const leaveDeleteIds = [];
+                    const validLeaveIds = new Set();
+                    leaves.forEach(l => {
+                        if (!teacherIds.has(l.requesterId)) {
+                            leaveDeleteIds.push(l.id);
+                            result.removedLeaves++;
+                            return;
+                        }
+                        newLeaves.push(l);
+                        validLeaveIds.add(l.id);
+                    });
+
+                    // 3) ตรวจสอบ/ซ่อมคาบสอนแทน (substituteTasks)
+                    const newTasks = [];
+                    const taskUpserts = [];
+                    const taskDeleteIds = [];
+                    substituteTasks.forEach(t => {
+                        if (!teacherIds.has(t.requesterId) || (t.leaveId && !validLeaveIds.has(t.leaveId))) {
+                            taskDeleteIds.push(t.id);
+                            result.removedTasks++;
+                            return;
+                        }
+                        if (t.assignedTo && !teacherIds.has(t.assignedTo)) {
+                            const fixedTask = { ...t, assignedTo: null, status: 'pending' };
+                            result.fixedTasks++;
+                            taskUpserts.push(fixedTask);
+                            newTasks.push(fixedTask);
+                        } else {
+                            newTasks.push(t);
+                        }
+                    });
+
+                    // 4) ตรวจสอบ/ซ่อมข้อมูลกลุ่มสาระฯ และระดับชั้นของครู ให้ตรงกับรายการที่มีอยู่จริง
+                    const newTeachers = teachers.map(t => {
+                        if (t.role !== 'teacher') return t;
+                        const fixedDept = (t.dept || '').split(',').map(d => d.trim()).filter(d => d && deptNames.has(d)).join(', ');
+                        const fixedGrade = (t.grade || '').split(',').map(g => g.trim()).filter(g => g && gradeNames.has(g)).join(', ');
+                        if (fixedDept !== (t.dept || '') || fixedGrade !== (t.grade || '')) {
+                            result.fixedTeachers++;
+                            return { ...t, dept: fixedDept, grade: fixedGrade };
+                        }
+                        return t;
+                    });
+                    const teacherUpserts = newTeachers.filter((t, i) => t !== teachers[i]);
+
+                    // ใช้ค่าที่ปรับปรุงแล้วกับ state
+                    setTimetables(newTimetables);
+                    setLeaves(newLeaves);
+                    setSubstituteTasks(newTasks);
+                    if (teacherUpserts.length > 0) setTeachers(newTeachers);
+
+                    // ส่งข้อมูลที่แก้ไขแล้วไปซิงค์กับ Google Sheets
+                    if (timetableDeleteIds.length > 0) await syncToSheets('batchDelete', 'timetables', timetableDeleteIds, `กำลังลบข้อมูลตารางสอนที่ไม่สมบูรณ์ (${timetableDeleteIds.length} รายการ)...`);
+                    if (timetableUpserts.length > 0) await syncToSheets('batchUpsert', 'timetables', timetableUpserts, `กำลังซิงค์ข้อมูลตารางสอน (${timetableUpserts.length} รายการ)...`);
+                    if (leaveDeleteIds.length > 0) await syncToSheets('batchDelete', 'leaves', leaveDeleteIds, `กำลังลบข้อมูลการลาที่ไม่สมบูรณ์ (${leaveDeleteIds.length} รายการ)...`);
+                    if (taskDeleteIds.length > 0) await syncToSheets('batchDelete', 'substituteTasks', taskDeleteIds, `กำลังลบคาบสอนแทนที่ไม่สมบูรณ์ (${taskDeleteIds.length} รายการ)...`);
+                    if (taskUpserts.length > 0) await syncToSheets('batchUpsert', 'substituteTasks', taskUpserts, `กำลังซิงค์ข้อมูลคาบสอนแทน (${taskUpserts.length} รายการ)...`);
+                    if (teacherUpserts.length > 0) await syncToSheets('batchUpsert', 'teachers', teacherUpserts, `กำลังซิงค์ข้อมูลครู (${teacherUpserts.length} รายการ)...`);
+
+                    return result;
                 }
             };
 
@@ -886,7 +999,7 @@
                         {activeTab === 'slip' && isAdmin && (
                             <div className="fade-in space-y-4">
                                 <button onClick={() => setActiveTab('home')} className="text-gray-500 hover:text-blue-600 font-medium flex items-center mb-4 transition-colors no-print"><i className="fas fa-arrow-left mr-2"></i> กลับหน้าหลัก</button>
-                                <SubstituteSlip sysConfig={sysConfig} leaves={leaves} tasks={substituteTasks} teachers={teachers} getTeacherName={getTeacherName} currentTermId={currentTermId} selectedDate={selectedDate} setSelectedDate={setSelectedDate} showToast={showToast} />
+                                <SubstituteSlip sysConfig={sysConfig} leaves={leaves} tasks={substituteTasks} teachers={teachers} subjects={subjects} getTeacherName={getTeacherName} currentTermId={currentTermId} selectedDate={selectedDate} setSelectedDate={setSelectedDate} showToast={showToast} />
                             </div>
                         )}
 
@@ -1240,8 +1353,9 @@
         }
 
         // --- ใบบันทึกการจัดสอนแทน (พิมพ์ได้ / คัดลอกได้) ---
-        function SubstituteSlip({ sysConfig, leaves, tasks, teachers, getTeacherName, currentTermId, selectedDate, setSelectedDate, showToast }) {
+        function SubstituteSlip({ sysConfig, leaves, tasks, teachers, subjects, getTeacherName, currentTermId, selectedDate, setSelectedDate, showToast }) {
             const REASON_OPTIONS = ['ไปราชการ', 'ลาป่วย', 'ลากิจ'];
+            const NAME_PREFIX_REGEX = /^(นางสาว|นาง|นาย|ว่าที่ร้อยตรีหญิง|ว่าที่ร้อยตรี|ดร\.|ผศ\.ดร\.|รศ\.ดร\.|ศ\.ดร\.|ผศ\.|รศ\.|ศ\.|อาจารย์)\s*/;
 
             const [docTitle, setDocTitle] = useState('แบบบันทึกการจัดสอนแทน');
             const [schoolLine, setSchoolLine] = useState(sysConfig.name || 'โรงเรียนพนมรุ้ง สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาบุรีรัมย์');
@@ -1250,6 +1364,7 @@
             const [closingLine, setClosingLine] = useState('จึงเรียนมาเพื่อทราบและปฏิบัติ');
             const [signerName, setSignerName] = useState('(....................................)');
             const [signerTitle, setSignerTitle] = useState('รองผู้อำนวยการโรงเรียน');
+            const [isCapturing, setIsCapturing] = useState(false);
 
             const dayLeaves = useMemo(() => leaves.filter(l => l.date === selectedDate && l.status !== 'cancelled'), [leaves, selectedDate]);
 
@@ -1260,36 +1375,59 @@
                 return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
             };
 
+            // หารหัสวิชาจากชื่อวิชาที่บันทึกไว้ในคาบสอนแทน เพื่อแสดงคู่กับชื่อวิชา
+            const getSubjectDisplay = (subjectName) => {
+                const found = subjects.find(s => s.name === subjectName);
+                return found ? `${found.code} ${subjectName}` : subjectName;
+            };
+
+            // แสดงชื่อผู้สอนแทนแค่ชื่อตัว ถ้ามีชื่อซ้ำกับครูคนอื่น ให้ใส่อักษรตัวแรกของนามสกุลในวงเล็บ
+            const getShortSubName = (teacherId) => {
+                if (!teacherId) return '-';
+                const t = teachers.find(x => x.id === teacherId);
+                if (!t) return getTeacherName(teacherId);
+                const cleaned = t.name.replace(NAME_PREFIX_REGEX, '').trim();
+                const parts = cleaned.split(/\s+/);
+                const firstName = parts[0] || cleaned;
+                const lastName = parts.slice(1).join(' ');
+                const duplicateCount = teachers.filter(o => o.role === 'teacher').filter(o => {
+                    const c2 = o.name.replace(NAME_PREFIX_REGEX, '').trim();
+                    const f2 = c2.split(/\s+/)[0] || c2;
+                    return f2 === firstName;
+                }).length;
+                if (duplicateCount > 1 && lastName) {
+                    return `${firstName} (${lastName.charAt(0)}.)`;
+                }
+                return firstName;
+            };
+
             const handleCopy = async () => {
-                let lines = [];
-                lines.push(docTitle);
-                lines.push(schoolLine);
-                lines.push(toLine);
-                lines.push(`วันที่ ${formatThaiDate(selectedDate)}`);
-                lines.push('');
-                dayLeaves.forEach((l, idx) => {
-                    const tasksForLeave = tasks.filter(t => t.leaveId === l.id);
-                    lines.push(`${idx + 1}. ครู ${getTeacherName(l.requesterId)} (${l.reason})`);
-                    if (tasksForLeave.length === 0) {
-                        lines.push('   - ไม่มีคาบสอนในวันนี้');
-                    } else {
-                        tasksForLeave.sort((a,b)=>parseInt(a.period)-parseInt(b.period)).forEach(t => {
-                            lines.push(`   - คาบ ${t.period} | วิชา ${t.subject} | ชั้น ${t.classGroup} | ผู้สอนแทน: ${t.assignedTo ? getTeacherName(t.assignedTo) : 'ยังไม่ได้จัด'}`);
-                        });
-                    }
-                });
-                lines.push('');
-                lines.push(closingLine);
-                const text = lines.join('\n');
+                if (typeof html2canvas === 'undefined') {
+                    showToast('ไม่พบไลบรารีสำหรับจับภาพหน้าจอ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต', 'error');
+                    return;
+                }
+                const target = document.getElementById('printable-slip');
+                if (!target) return;
+                setIsCapturing(true);
                 try {
-                    await navigator.clipboard.writeText(text);
-                    showToast('คัดลอกข้อมูลใบบันทึกแล้ว');
+                    const canvas = await html2canvas(target, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+                    canvas.toBlob(async (blob) => {
+                        setIsCapturing(false);
+                        if (!blob) { showToast('ไม่สามารถสร้างภาพได้', 'error'); return; }
+                        try {
+                            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                            showToast('คัดลอกภาพใบบันทึกไปยังคลิปบอร์ดแล้ว วาง (Ctrl+V) ได้ทันที');
+                        } catch (err) {
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url; a.download = `substitute_slip_${selectedDate}.png`; a.click();
+                            URL.revokeObjectURL(url);
+                            showToast('เบราว์เซอร์นี้ไม่รองรับการคัดลอกภาพ จึงดาวน์โหลดเป็นไฟล์ภาพให้แทน', 'info');
+                        }
+                    }, 'image/png');
                 } catch (e) {
-                    const ta = document.createElement('textarea');
-                    ta.value = text; document.body.appendChild(ta); ta.select();
-                    try { document.execCommand('copy'); showToast('คัดลอกข้อมูลใบบันทึกแล้ว'); }
-                    catch (err) { showToast('ไม่สามารถคัดลอกได้ กรุณาคัดลอกด้วยตนเอง', 'error'); }
-                    document.body.removeChild(ta);
+                    setIsCapturing(false);
+                    showToast('เกิดข้อผิดพลาดขณะจับภาพหน้าจอ', 'error');
                 }
             };
 
@@ -1302,7 +1440,7 @@
                             <span className="text-xs text-gray-400">({dayLeaves.length} รายการ)</span>
                         </div>
                         <div className="flex gap-2">
-                            <button onClick={handleCopy} className="bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 px-4 py-2 rounded-lg text-sm font-medium"><i className="fas fa-copy mr-2"></i>คัดลอก</button>
+                            <button onClick={handleCopy} disabled={isCapturing} className="bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 disabled:opacity-60 px-4 py-2 rounded-lg text-sm font-medium">{isCapturing ? <React.Fragment><i className="fas fa-spinner fa-spin mr-2"></i>กำลังจับภาพ...</React.Fragment> : <React.Fragment><i className="fas fa-camera mr-2"></i>คัดลอก (ภาพ)</React.Fragment>}</button>
                             <button onClick={() => window.print()} className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm"><i className="fas fa-print mr-2"></i>พิมพ์ / บันทึกเป็น PDF</button>
                         </div>
                     </div>
@@ -1371,12 +1509,12 @@
                                                 <td className="border border-gray-800 px-2 py-1 text-center font-medium text-gray-600">{label}</td>
                                                 {PERIOD_TIMES.slice(0,4).map(pt => {
                                                     const t = tasksForLeave.find(x => x.period === pt.period);
-                                                    return <td key={pt.period} className="border border-gray-800 px-1 py-1 text-center">{t ? (label === 'วิชา' ? t.subject : label === 'ชั้น' ? t.classGroup : (t.assignedTo ? getTeacherName(t.assignedTo) : '-')) : ''}</td>;
+                                                    return <td key={pt.period} className="border border-gray-800 px-1 py-1 text-center">{t ? (label === 'วิชา' ? getSubjectDisplay(t.subject) : label === 'ชั้น' ? t.classGroup : getShortSubName(t.assignedTo)) : ''}</td>;
                                                 })}
                                                 <td className="border border-gray-800 bg-gray-50"></td>
                                                 {PERIOD_TIMES.slice(4).map(pt => {
                                                     const t = tasksForLeave.find(x => x.period === pt.period);
-                                                    return <td key={pt.period} className="border border-gray-800 px-1 py-1 text-center">{t ? (label === 'วิชา' ? t.subject : label === 'ชั้น' ? t.classGroup : (t.assignedTo ? getTeacherName(t.assignedTo) : '-')) : ''}</td>;
+                                                    return <td key={pt.period} className="border border-gray-800 px-1 py-1 text-center">{t ? (label === 'วิชา' ? getSubjectDisplay(t.subject) : label === 'ชั้น' ? t.classGroup : getShortSubName(t.assignedTo)) : ''}</td>;
                                                 })}
                                             </tr>
                                         ));
@@ -1465,7 +1603,7 @@
                         {tab === 'room' && <SimpleCrud title="จัดการห้องเรียน" data={db.rooms} columns={[{key:'id', label:'รหัส'}, {key:'name', label:'เลขห้อง'}, {key:'grade', label:'ระดับชั้น', type:'select', options: db.grades.map(g=>g.name)}, {key:'classGroup', label:'ห้อง/ทับ'}]} onSave={actions.addRoom} onToggle={actions.toggleRoom} onDelete={actions.delRoom} askConfirm={askConfirm} />}
                         {tab === 'subj' && <SimpleCrud title="จัดการรายวิชา" data={db.subjects} columns={[{key:'id', label:'รหัสระบบ'}, {key:'code', label:'รหัสวิชา'}, {key:'name', label:'ชื่อวิชา'}, {key:'dept', label:'กลุ่มสาระฯ', type:'select', options: db.departments.map(d=>d.name)}, {key:'grade', label:'ระดับชั้น', type:'select', options: db.grades.map(g=>g.name)}, {key:'room', label:'ห้อง (เช่น 111, ทั้งหมด)'}]} onSave={actions.addSubj} onToggle={actions.toggleSubj} onDelete={actions.delSubj} askConfirm={askConfirm} showBulkDelete={true} onDeleteBulk={(ids)=>actions.delBulk('subjects', ids)} />}
                         {tab === 'teacher' && <TeacherCrud data={db.teachers} depts={db.departments.map(d=>d.name)} grades={db.grades.map(g=>g.name)} onSave={actions.addTeacher} onToggle={actions.toggleTeacher} onDelete={actions.delTeacher} onAddBulk={actions.addTeacherBulk} onDeleteBulk={actions.deleteTeacherBulk} sysConfig={db.sysConfig} showToast={showToast} askConfirm={askConfirm} />}
-                        {tab === 'timetable' && <TimetableManager manageTermId={manageTermId} termName={db.terms.find(t=>t.id===manageTermId)?.name} teachers={db.teachers.filter(t=>t.role==='teacher' && t.isActive)} timetables={db.timetables} subjects={db.subjects.filter(s=>s.isActive)} rooms={db.rooms.filter(r=>r.isActive)} addTimetableSlot={actions.addTimetableSlot} delTimetableSlot={actions.delTimetableSlot} onAddBulk={actions.addTimetableBulk} onDeleteBulk={actions.deleteTimetableBulk} showToast={showToast} askConfirm={askConfirm} />}
+                        {tab === 'timetable' && <TimetableManager manageTermId={manageTermId} termName={db.terms.find(t=>t.id===manageTermId)?.name} teachers={db.teachers.filter(t=>t.role==='teacher' && t.isActive)} departments={db.departments.filter(d=>d.isActive)} timetables={db.timetables} subjects={db.subjects.filter(s=>s.isActive)} rooms={db.rooms.filter(r=>r.isActive)} addTimetableSlot={actions.addTimetableSlot} delTimetableSlot={actions.delTimetableSlot} onAddBulk={actions.addTimetableBulk} onDeleteBulk={actions.deleteTimetableBulk} showToast={showToast} askConfirm={askConfirm} />}
                     </div>
                 </div>
             );
@@ -1491,6 +1629,7 @@
             const [autoBackup, setAutoBackup] = useState(localStorage.getItem('auto_backup') === 'true');
             const [lastBackup, setLastBackup] = useState(localStorage.getItem('last_backup') || '-');
             const [autoBackupDate, setAutoBackupDate] = useState(localStorage.getItem('auto_backup_date') || '-');
+            const [repairResult, setRepairResult] = useState(null);
             
             const fileRef = useRef(null);
 
@@ -1662,6 +1801,34 @@
                             )}
                             <div className="text-xs text-gray-500 text-center mt-3 text-red-500 font-medium"><i className="fas fa-exclamation-triangle"></i> ข้อมูลจะถูกเขียนทับทันที โปรดระมัดระวัง</div>
                         </div>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-xl border-2 border-dashed border-amber-300 shadow-sm">
+                        <h3 className="font-bold text-gray-800 mb-1"><i className="fas fa-magic text-amber-500 mr-2"></i> ปรุงฐานข้อมูล (เฉพาะแอดมิน)</h3>
+                        <p className="text-sm text-gray-500 mb-4">ตรวจสอบข้อมูลทั้งระบบและปรับปรุงให้สัมพันธ์กันโดยอัตโนมัติ เช่น ลบคาบสอน/ใบลา/คาบสอนแทนที่อ้างอิงถึงครู วิชา หรือห้องที่ถูกลบไปแล้ว, อัปเดตชื่อวิชา-ห้อง-ชั้นในตารางสอนให้ตรงกับข้อมูลล่าสุด, และซิงค์รายชื่อกลุ่มสาระฯ/ระดับชั้นของครูให้ตรงกับรายการที่มีอยู่จริง</p>
+                        <button
+                            onClick={() => askConfirm('ระบบจะตรวจสอบข้อมูลทั้งหมด (ตารางสอน, การลา, คาบสอนแทน, ข้อมูลครู) และปรับปรุง/ลบรายการที่ไม่สัมพันธ์กันโดยอัตโนมัติ การกระทำนี้ไม่สามารถย้อนกลับได้ ต้องการดำเนินการหรือไม่?', async () => {
+                                const result = await actions.repairDatabase();
+                                setRepairResult(result);
+                                const totalFixed = result.fixedSlots + result.fixedTasks + result.fixedTeachers;
+                                const totalRemoved = result.removedSlots + result.removedTasks + result.removedLeaves;
+                                if (totalFixed === 0 && totalRemoved === 0) showToast('ตรวจสอบแล้ว ข้อมูลทั้งหมดสัมพันธ์กันถูกต้องดีอยู่แล้ว');
+                                else showToast(`ปรุงฐานข้อมูลสำเร็จ: แก้ไข ${totalFixed} รายการ, ลบข้อมูลไม่สมบูรณ์ ${totalRemoved} รายการ`);
+                            })}
+                            className="w-full bg-amber-500 hover:bg-amber-600 text-white font-medium py-2.5 rounded-lg transition-colors shadow-sm"
+                        >
+                            <i className="fas fa-broom mr-2"></i>เริ่มปรุงฐานข้อมูล
+                        </button>
+                        {repairResult && (
+                            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-center">
+                                <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-2"><div className="text-xl font-bold text-indigo-700">{repairResult.fixedSlots}</div><div className="text-xs text-indigo-500">ซิงค์คาบสอน</div></div>
+                                <div className="bg-red-50 border border-red-100 rounded-lg p-2"><div className="text-xl font-bold text-red-700">{repairResult.removedSlots}</div><div className="text-xs text-red-500">ลบคาบสอนที่เสีย</div></div>
+                                <div className="bg-amber-50 border border-amber-100 rounded-lg p-2"><div className="text-xl font-bold text-amber-700">{repairResult.removedLeaves}</div><div className="text-xs text-amber-500">ลบใบลาที่เสีย</div></div>
+                                <div className="bg-orange-50 border border-orange-100 rounded-lg p-2"><div className="text-xl font-bold text-orange-700">{repairResult.fixedTasks}</div><div className="text-xs text-orange-500">แก้ไขคาบสอนแทน</div></div>
+                                <div className="bg-rose-50 border border-rose-100 rounded-lg p-2"><div className="text-xl font-bold text-rose-700">{repairResult.removedTasks}</div><div className="text-xs text-rose-500">ลบคาบสอนแทนที่เสีย</div></div>
+                                <div className="bg-green-50 border border-green-100 rounded-lg p-2"><div className="text-xl font-bold text-green-700">{repairResult.fixedTeachers}</div><div className="text-xs text-green-500">ซิงค์ข้อมูลครู</div></div>
+                            </div>
+                        )}
                     </div>
                 </div>
             );
@@ -1908,11 +2075,17 @@
             );
         };
 
-        const TimetableManager = ({ manageTermId, termName, teachers, timetables, subjects, rooms, addTimetableSlot, delTimetableSlot, onAddBulk, onDeleteBulk, showToast, askConfirm }) => {
+        const TimetableManager = ({ manageTermId, termName, teachers, departments, timetables, subjects, rooms, addTimetableSlot, delTimetableSlot, onAddBulk, onDeleteBulk, showToast, askConfirm }) => {
             const [viewMode, setViewMode] = useState('grid'); 
+            const [selDept, setSelDept] = useState('');
             const [selTeacher, setSelTeacher] = useState(''); 
             const [selDay, setSelDay] = useState(1);
-            const [addCell, setAddCell] = useState(null); // { day, period } currently open for adding in grid mode
+            const [addCell, setAddCell] = useState(null); // { day, period, roomId } currently open for adding in grid mode
+
+            const filteredTeachersByDept = useMemo(() => {
+                if (!selDept) return [];
+                return teachers.filter(t => (t.dept || '').split(',').map(x => x.trim()).includes(selDept));
+            }, [teachers, selDept]);
             
             // Search and Sort State for List View
             const [searchTerm, setSearchTerm] = useState('');
@@ -1989,13 +2162,11 @@
                 addTimetableSlot(manageTermId, selTeacher, selDay, slotData); e.target.reset();
             };
 
-            const addSlotInGrid = (day, period, e) => {
-                e.preventDefault(); const fd = new FormData(e.target);
-                const subjId = fd.get('subject'); const roomId = fd.get('room');
+            const addSlotInGrid = (day, period, roomId, subjectId) => {
                 const daySlots = (timetables[manageTermId]?.[selTeacher]?.[day]) || [];
                 if (daySlots.some(s => s.period === period)) { showToast('คาบนี้มีสอนแล้ว กรุณาลบของเดิมก่อน', 'error'); setAddCell(null); return; }
-                const subjObj = subjects.find(s=>s.id === subjId); const roomObj = rooms.find(r=>r.id === roomId);
-                const slotData = { period, subjectId: subjId, roomId: roomId, subject: subjObj.name, targetDept: subjObj.dept, targetGrade: roomObj.grade, classGroup: roomObj.classGroup, room: roomObj.name };
+                const subjObj = subjects.find(s=>s.id === subjectId); const roomObj = rooms.find(r=>r.id === roomId);
+                const slotData = { period, subjectId: subjectId, roomId: roomId, subject: subjObj.name, targetDept: subjObj.dept, targetGrade: roomObj.grade, classGroup: roomObj.classGroup, room: roomObj.name };
                 addTimetableSlot(manageTermId, selTeacher, day, slotData);
                 setAddCell(null);
             };
@@ -2082,7 +2253,22 @@
 
                     {viewMode === 'grid' && (
                         <div className="pt-2">
-                            <div className="flex gap-4 mb-6"><select className="border rounded-lg p-2 w-full sm:w-1/2" value={selTeacher} onChange={e=>{setSelTeacher(e.target.value); setAddCell(null);}}><option value="">-- เลือกครูผู้สอนเพื่อจัดตารางจริง --</option>{teachers.map(t=><option key={t.id} value={t.id}>{t.name} ({t.id})</option>)}</select></div>
+                            <div className="flex flex-col sm:flex-row gap-3 mb-6">
+                                <div className="flex-1">
+                                    <label className="block text-xs font-semibold text-gray-600 mb-1">1. เลือกกลุ่มสาระฯ</label>
+                                    <select className="border rounded-lg p-2 w-full" value={selDept} onChange={e=>{ setSelDept(e.target.value); setSelTeacher(''); setAddCell(null); }}>
+                                        <option value="">-- เลือกกลุ่มสาระฯ --</option>
+                                        {departments.map(d=><option key={d.id} value={d.name}>{d.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className="flex-1">
+                                    <label className="block text-xs font-semibold text-gray-600 mb-1">2. เลือกครูผู้สอน</label>
+                                    <select className="border rounded-lg p-2 w-full disabled:bg-gray-100" disabled={!selDept} value={selTeacher} onChange={e=>{setSelTeacher(e.target.value); setAddCell(null);}}>
+                                        <option value="">{selDept ? '-- เลือกครูผู้สอนเพื่อจัดตารางจริง --' : 'กรุณาเลือกกลุ่มสาระฯก่อน'}</option>
+                                        {filteredTeachersByDept.map(t=><option key={t.id} value={t.id}>{t.name} ({t.id})</option>)}
+                                    </select>
+                                </div>
+                            </div>
                             {selTeacher ? (
                                 <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
                                     <div className="p-4 bg-purple-50 border-b font-semibold text-purple-800 flex items-center justify-between flex-wrap gap-2">
@@ -2117,16 +2303,37 @@
                                                                             <div className="text-xs text-gray-500 mt-1"><span className="bg-indigo-100 px-1 rounded text-indigo-700 mr-1">{slot.classGroup}</span>{slot.room}</div>
                                                                         </div>
                                                                     ) : isAdding ? (
-                                                                        <form onSubmit={(e)=>addSlotInGrid(d.id, pt.period, e)} className="bg-yellow-50 border border-yellow-300 rounded-lg p-2 space-y-1.5 min-h-[64px]">
-                                                                            <select name="subject" required autoFocus className="w-full border rounded p-1 text-xs"><option value="">-- วิชา --</option>{subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>
-                                                                            <select name="room" required className="w-full border rounded p-1 text-xs"><option value="">-- ห้อง --</option>{rooms.map(r=><option key={r.id} value={r.id}>{r.name} ({r.classGroup})</option>)}</select>
-                                                                            <div className="flex gap-1">
-                                                                                <button type="submit" className="flex-1 bg-purple-600 text-white text-xs py-1 rounded hover:bg-purple-700">เพิ่ม</button>
-                                                                                <button type="button" onClick={()=>setAddCell(null)} className="flex-1 bg-gray-200 text-xs py-1 rounded hover:bg-gray-300">ยกเลิก</button>
-                                                                            </div>
-                                                                        </form>
+                                                                        <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-2 space-y-1.5 min-h-[64px]">
+                                                                            {!addCell.roomId ? (
+                                                                                <React.Fragment>
+                                                                                    <div className="text-[10px] text-gray-500 font-semibold">1. เลือกห้อง</div>
+                                                                                    <select autoFocus className="w-full border rounded p-1 text-xs" defaultValue="" onChange={(e)=>{ if(e.target.value) setAddCell({...addCell, roomId: e.target.value}); }}>
+                                                                                        <option value="">-- ห้อง --</option>
+                                                                                        {rooms.map(r=><option key={r.id} value={r.id}>{r.name} ({r.classGroup})</option>)}
+                                                                                    </select>
+                                                                                    <button type="button" onClick={()=>setAddCell(null)} className="w-full bg-gray-200 text-xs py-1 rounded hover:bg-gray-300">ยกเลิก</button>
+                                                                                </React.Fragment>
+                                                                            ) : (() => {
+                                                                                const roomObj = rooms.find(r=>r.id===addCell.roomId);
+                                                                                const filteredSubjects = subjects.filter(s=>s.grade === roomObj.grade);
+                                                                                return (
+                                                                                    <React.Fragment>
+                                                                                        <div className="text-[10px] text-gray-500 font-semibold">2. เลือกวิชา (ชั้น {roomObj.grade})</div>
+                                                                                        <select autoFocus className="w-full border rounded p-1 text-xs" defaultValue="" onChange={(e)=>{ if(e.target.value) addSlotInGrid(d.id, pt.period, addCell.roomId, e.target.value); }}>
+                                                                                            <option value="">-- วิชา --</option>
+                                                                                            {filteredSubjects.map(s=><option key={s.id} value={s.id}>{s.code} {s.name}</option>)}
+                                                                                        </select>
+                                                                                        {filteredSubjects.length === 0 && <div className="text-[10px] text-red-500">ไม่มีรายวิชาของชั้นนี้</div>}
+                                                                                        <div className="flex gap-1">
+                                                                                            <button type="button" onClick={()=>setAddCell({...addCell, roomId: ''})} className="flex-1 bg-gray-100 text-xs py-1 rounded hover:bg-gray-200">ย้อนกลับ</button>
+                                                                                            <button type="button" onClick={()=>setAddCell(null)} className="flex-1 bg-gray-200 text-xs py-1 rounded hover:bg-gray-300">ยกเลิก</button>
+                                                                                        </div>
+                                                                                    </React.Fragment>
+                                                                                );
+                                                                            })()}
+                                                                        </div>
                                                                     ) : (
-                                                                        <button onClick={() => setAddCell({ day: d.id, period: pt.period })} className="w-full h-full min-h-[64px] flex items-center justify-center text-gray-300 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors">
+                                                                        <button onClick={() => setAddCell({ day: d.id, period: pt.period, roomId: '' })} className="w-full h-full min-h-[64px] flex items-center justify-center text-gray-300 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors">
                                                                             <i className="fas fa-plus"></i>
                                                                         </button>
                                                                     )}
@@ -2145,7 +2352,11 @@
 
                     {viewMode === 'individual' && (
                         <div className="pt-2">
-                            <div className="flex gap-4 mb-6"><select className="border rounded-lg p-2 w-1/2" value={selTeacher} onChange={e=>setSelTeacher(e.target.value)}><option value="">-- เลือกครูผู้สอน --</option>{teachers.map(t=><option key={t.id} value={t.id}>{t.name} ({t.id})</option>)}</select><select className="border rounded-lg p-2 w-1/4" value={selDay} onChange={e=>setSelDay(parseInt(e.target.value))}>{DAYS.map(d=><option key={d.id} value={d.id}>วัน{d.name}</option>)}</select></div>
+                            <div className="flex flex-wrap gap-4 mb-6">
+                                <select className="border rounded-lg p-2 w-full sm:w-1/3" value={selDept} onChange={e=>{ setSelDept(e.target.value); setSelTeacher(''); }}><option value="">-- เลือกกลุ่มสาระฯ --</option>{departments.map(d=><option key={d.id} value={d.name}>{d.name}</option>)}</select>
+                                <select className="border rounded-lg p-2 w-full sm:w-1/3 disabled:bg-gray-100" disabled={!selDept} value={selTeacher} onChange={e=>setSelTeacher(e.target.value)}><option value="">{selDept ? '-- เลือกครูผู้สอน --' : 'กรุณาเลือกกลุ่มสาระฯก่อน'}</option>{filteredTeachersByDept.map(t=><option key={t.id} value={t.id}>{t.name} ({t.id})</option>)}</select>
+                                <select className="border rounded-lg p-2 w-full sm:w-1/4" value={selDay} onChange={e=>setSelDay(parseInt(e.target.value))}>{DAYS.map(d=><option key={d.id} value={d.id}>วัน{d.name}</option>)}</select>
+                            </div>
                             {selTeacher ? (
                                 <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
                                     <div className="p-4 bg-purple-50 border-b font-semibold text-purple-800">ตารางสอน: {teachers.find(t=>t.id===selTeacher)?.name} | วัน{DAYS.find(d=>d.id===selDay).name}</div>
