@@ -6,7 +6,7 @@
     <title>ระบบจัดสอนแทน</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 
     <!-- React & ReactDOM -->
@@ -39,6 +39,13 @@
             #printable-report { margin: 0; padding: 0; box-shadow: none; border: none; }
             .print-break-inside-avoid { break-inside: avoid; }
             input.print-input { border: none !important; background: transparent !important; padding: 0 !important; box-shadow: none !important; text-align: center; }
+        }
+        /* ใบส่งสอนแทน: ใช้ Sarabun เสมอ */
+        #printable-slip, #printable-slip * {
+            font-family: 'Sarabun', 'TH Sarabun New', sans-serif !important;
+        }
+        #printable-slip input, #printable-slip textarea {
+            font-family: 'Sarabun', 'TH Sarabun New', sans-serif !important;
         }
     </style>
 </head>
@@ -123,7 +130,7 @@
         };
 
         // --- Mock Data Sets ---
-        const MOCK_SYS = { name: 'ระบบจัดสอนแทนอัจฉริยะ', logoUrl: '', password: '1234', defaultMaxPerDay: 4, sheetUrl: '', autoRules: { mustMatchDept: false, mustMatchGrade: false, balanceLoad: true, ignoreMaxLoadIfEmpty: true } };
+        const MOCK_SYS = { name: 'ระบบจัดสอนแทนอัจฉริยะ', logoUrl: '', password: '1234', defaultMaxPerDay: 4, sheetUrl: '', autoRules: { mustMatchDept: false, mustMatchGrade: false, balanceLoad: true, ignoreMaxLoadIfEmpty: true, prioritizeReservations: true } };
         const MOCK_TERMS = [{ id: 'TERM_2569_1', name: '1/2569', isCurrent: true, isActive: true }, { id: 'TERM_2569_2', name: '2/2569', isCurrent: false, isActive: true }];
         const MOCK_DEPTS = [{ id: 'D01', name: 'คณิตศาสตร์', isActive: true }, { id: 'D02', name: 'วิทยาศาสตร์', isActive: true }, { id: 'D03', name: 'ภาษาไทย', isActive: true }, { id: 'D04', name: 'ภาษาต่างประเทศ', isActive: true }];
         const MOCK_GRADES = [{ id: 'G01', name: 'ม.1', isActive: true }, { id: 'G02', name: 'ม.2', isActive: true }, { id: 'G03', name: 'ม.3', isActive: true }];
@@ -757,11 +764,13 @@
                     else if (isGradeMatch) { score += 20; tags.push({ text: 'ระดับชั้นเดียวกัน', color: 'bg-indigo-100 text-indigo-800' }); }
 
                     // คะแนนพิเศษสำหรับครูที่จองสอนแทนตรงกับห้อง/ระดับชั้นนี้
-                    const myReserv = reservations.filter(r => r.teacherId === t.id && r.isActive && r.termId === task.termId);
-                    const reservRoom  = myReserv.find(r => r.roomId && r.roomId === task.roomId);
-                    const reservGrade = myReserv.find(r => r.grade && r.grade === task.targetGrade && !r.roomId);
-                    if (reservRoom)  { score += 80; tags.push({ text: '★ จองห้องนี้ไว้', color: 'bg-yellow-100 text-yellow-800 border-yellow-300' }); }
-                    else if (reservGrade) { score += 40; tags.push({ text: '★ จองชั้นนี้ไว้', color: 'bg-amber-100 text-amber-800 border-amber-300' }); }
+                    if (sysConfig.autoRules?.prioritizeReservations !== false) {
+                        const myReserv = reservations.filter(r => r.teacherId === t.id && r.isActive && r.termId === task.termId);
+                        const reservRoom  = myReserv.find(r => r.roomId && r.roomId === task.roomId && (!r.day || r.day === String(new Date(task.date).getDay())) && (!r.period || r.period === task.period));
+                        const reservGrade = myReserv.find(r => r.grade && r.grade === task.targetGrade && !r.roomId && (!r.day || r.day === String(new Date(task.date).getDay())) && (!r.period || r.period === task.period));
+                        if (reservRoom)  { score += 80; tags.push({ text: '★ จองห้องนี้ไว้', color: 'bg-yellow-100 text-yellow-800 border-yellow-300' }); }
+                        else if (reservGrade) { score += 40; tags.push({ text: '★ จองชั้นนี้ไว้', color: 'bg-amber-100 text-amber-800 border-amber-300' }); }
+                    }
 
                     t.subThisWeek = taskTermTasks.filter(st => st.assignedTo === t.id && isSameWeek(st.date, task.date)).length;
                     t.subLastWeek = taskTermTasks.filter(st => st.assignedTo === t.id && isLastWeek(st.date, task.date)).length;
@@ -1594,7 +1603,8 @@
             const [selTermId, setSelTermId] = useState(currentTermId);
             const [selGrade, setSelGrade] = useState('');
             const [selRoomId, setSelRoomId] = useState('');
-            const [viewTeacher, setViewTeacher] = useState('');
+            const [selDay, setSelDay] = useState('');       // '' = ทุกวัน
+            const [selPeriod, setSelPeriod] = useState(''); // '' = ทุกคาบ
 
             const filteredByDept = useMemo(() => selDept ? teachers.filter(t=>(t.dept||'').split(',').map(x=>x.trim()).includes(selDept)) : [], [teachers, selDept]);
             const filteredRooms  = useMemo(() => selGrade ? rooms.filter(r=>r.grade===selGrade) : rooms, [rooms, selGrade]);
@@ -1602,12 +1612,23 @@
             const handleSave = () => {
                 if (!selTeacher || !selTermId) return showToast('กรุณาเลือกครูและภาคเรียน', 'error');
                 if (!selGrade && !selRoomId) return showToast('กรุณาเลือกอย่างน้อยระดับชั้น หรือห้องเรียน', 'error');
-                const dup = reservations.find(r => r.teacherId===selTeacher && r.termId===selTermId && r.grade===selGrade && r.roomId===selRoomId && r.isActive);
+                const dup = reservations.find(r =>
+                    r.teacherId===selTeacher && r.termId===selTermId &&
+                    r.grade===selGrade && r.roomId===selRoomId &&
+                    r.day===selDay && r.period===selPeriod && r.isActive
+                );
                 if (dup) return showToast('รายการนี้มีการจองไว้แล้ว', 'error');
                 const roomObj = selRoomId ? rooms.find(r=>r.id===selRoomId) : null;
-                onSave({ id:`RES_${Date.now()}`, teacherId: selTeacher, termId: selTermId, grade: selGrade, roomId: selRoomId, roomName: roomObj?.name||'', classGroup: roomObj?.classGroup||'', isActive: true });
+                const dayName = selDay ? (DAYS.find(d=>d.id===parseInt(selDay))?.name || selDay) : '';
+                onSave({
+                    id: `RES_${Date.now()}`,
+                    teacherId: selTeacher, termId: selTermId,
+                    grade: selGrade, roomId: selRoomId,
+                    roomName: roomObj?.name||'', classGroup: roomObj?.classGroup||'',
+                    day: selDay, period: selPeriod, dayName,
+                    isActive: true
+                });
                 showToast('จองสอนแทนสำเร็จ');
-                setSelGrade(''); setSelRoomId('');
             };
 
             // จัดกลุ่มการจองตามครู ในเทอมที่เลือก
@@ -1618,24 +1639,31 @@
                 return map;
             }, [reservations, selTermId]);
 
+            const resvLabel = (r) => {
+                const parts = [];
+                if (r.classGroup || r.grade) parts.push(r.classGroup || r.grade);
+                if (r.roomName) parts.push(`ห้อง ${r.roomName}`);
+                if (r.dayName || r.day) parts.push(`วัน${r.dayName || r.day}`);
+                if (r.period) parts.push(`คาบ ${r.period}`);
+                return parts.join(' · ') || 'ทุกห้อง';
+            };
+
             return (
                 <div className="fade-in max-w-2xl mx-auto space-y-5">
                     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                         <div className="px-5 py-4 border-b bg-orange-50">
                             <h2 className="text-lg font-bold text-orange-800"><i className="fas fa-bookmark mr-2"></i>จองสอนแทน</h2>
-                            <p className="text-xs text-orange-600 mt-0.5">ครูแจ้งความจำนงว่าพร้อมสอนแทนระดับชั้น/ห้องใด ระบบจะจัดให้ผู้ที่จองไว้ก่อนเมื่อมีการสอนแทน (ยึดเงื่อนไขคาบว่างและลิมิต)</p>
+                            <p className="text-xs text-orange-600 mt-0.5">ครูแจ้งความจำนงว่าพร้อมสอนแทนระดับชั้น/ห้องใด วัน/คาบไหน ระบบจะจัดให้ผู้ที่จองตรงก่อน (ยึดเงื่อนไขคาบว่างและลิมิต)</p>
                         </div>
                         <div className="p-5 space-y-4">
-                            {/* เลือกภาคเรียน */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-xs font-semibold text-gray-700 mb-1">ภาคเรียน</label>
-                                    <select className="w-full border rounded-lg p-2 text-sm" value={selTermId} onChange={e=>setSelTermId(e.target.value)}>
-                                        {terms.map(t=><option key={t.id} value={t.id}>{t.name}{t.isCurrent?' (ปัจจุบัน)':''}</option>)}
-                                    </select>
-                                </div>
+                            {/* ภาคเรียน */}
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-700 mb-1">ภาคเรียน</label>
+                                <select className="w-full border rounded-lg p-2 text-sm" value={selTermId} onChange={e=>setSelTermId(e.target.value)}>
+                                    {terms.map(t=><option key={t.id} value={t.id}>{t.name}{t.isCurrent?' (ปัจจุบัน)':''}</option>)}
+                                </select>
                             </div>
-                            {/* เลือกกลุ่มสาระ + ครู */}
+                            {/* กลุ่มสาระ + ครู */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-xs font-semibold text-gray-700 mb-1">1. กลุ่มสาระฯ</label>
@@ -1652,23 +1680,41 @@
                                     </select>
                                 </div>
                             </div>
-                            {/* เลือกระดับชั้น + ห้อง */}
+                            {/* ชั้น + ห้อง */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-xs font-semibold text-gray-700 mb-1">3. ระดับชั้น <span className="text-gray-400">(เลือกแค่ชั้น = สอนแทนได้ทุกห้องในชั้นนั้น)</span></label>
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1">3. ระดับชั้น <span className="text-gray-400 font-normal">(เลือกชั้น = ทุกห้องในชั้นนั้น)</span></label>
                                     <select className="w-full border rounded-lg p-2 text-sm" value={selGrade} onChange={e=>{setSelGrade(e.target.value);setSelRoomId('');}}>
                                         <option value="">-- ไม่ระบุ --</option>
                                         {grades.map(g=><option key={g.id} value={g.name}>{g.name}</option>)}
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-semibold text-gray-700 mb-1">4. ห้องเรียน <span className="text-gray-400">(เจาะจงห้อง = คะแนนสูงกว่า)</span></label>
-                                    <select className="w-full border rounded-lg p-2 text-sm disabled:bg-gray-100" value={selRoomId} onChange={e=>setSelRoomId(e.target.value)}>
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1">4. ห้องเรียน <span className="text-gray-400 font-normal">(เจาะจง = คะแนนสูงกว่า)</span></label>
+                                    <select className="w-full border rounded-lg p-2 text-sm" value={selRoomId} onChange={e=>setSelRoomId(e.target.value)}>
                                         <option value="">-- ไม่ระบุห้อง --</option>
                                         {filteredRooms.map(r=><option key={r.id} value={r.id}>{r.name} ({r.classGroup})</option>)}
                                     </select>
                                 </div>
                             </div>
+                            {/* วัน + คาบ */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1">5. วันที่พร้อมสอนแทน <span className="text-gray-400 font-normal">(ไม่ระบุ = ทุกวัน)</span></label>
+                                    <select className="w-full border rounded-lg p-2 text-sm" value={selDay} onChange={e=>setSelDay(e.target.value)}>
+                                        <option value="">ทุกวัน</option>
+                                        {DAYS.map(d=><option key={d.id} value={String(d.id)}>วัน{d.name}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1">6. คาบที่พร้อมสอนแทน <span className="text-gray-400 font-normal">(ไม่ระบุ = ทุกคาบ)</span></label>
+                                    <select className="w-full border rounded-lg p-2 text-sm" value={selPeriod} onChange={e=>setSelPeriod(e.target.value)}>
+                                        <option value="">ทุกคาบ</option>
+                                        {PERIOD_TIMES.map(pt=><option key={pt.period} value={pt.period}>คาบ {pt.period} ({pt.time})</option>)}
+                                    </select>
+                                </div>
+                            </div>
+
                             <button onClick={handleSave} disabled={!selTeacher||!selTermId||(!selGrade&&!selRoomId)} className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white font-medium py-2.5 rounded-lg transition-colors">
                                 <i className="fas fa-bookmark mr-2"></i>บันทึกการจอง
                             </button>
@@ -1690,9 +1736,8 @@
                                         {resvList.map(r => (
                                             <div key={r.id} className="flex items-center gap-1.5 bg-orange-50 border border-orange-200 text-orange-800 text-xs font-medium px-2.5 py-1.5 rounded-full">
                                                 <i className="fas fa-star text-yellow-500"></i>
-                                                {r.classGroup || r.grade || 'ทุกห้อง'}
-                                                {r.roomName && ` ห้อง ${r.roomName}`}
-                                                <button onClick={()=>onDelete(r.id)} className="ml-1 text-orange-400 hover:text-red-600 transition-colors"><i className="fas fa-times"></i></button>
+                                                {resvLabel(r)}
+                                                <button onClick={()=>onDelete(r.id)} className="ml-1 text-orange-400 hover:text-red-600 transition-colors" title="ลบการจอง"><i className="fas fa-times"></i></button>
                                             </div>
                                         ))}
                                     </div>
@@ -1891,51 +1936,69 @@
                 if (!target) return;
                 setIsCapturing(true);
                 try {
-                    // แปลง input/textarea เป็น span ชั่วคราว
-                    const inputs = [...target.querySelectorAll('input[type="text"],textarea')];
-                    inputs.forEach(inp => {
-                        const span = document.createElement('span');
-                        span.textContent = inp.value;
-                        span.style.cssText = 'display:inline-block;width:100%;text-align:center;font-family:inherit;font-size:inherit';
-                        inp.parentNode.insertBefore(span, inp);
-                        inp.style.display = 'none';
-                        inp._span = span;
-                    });
-                    // ขยาย overflow
-                    const oEls = [...target.querySelectorAll('*')].filter(el => {
-                        const s = getComputedStyle(el);
-                        return s.overflow !== 'visible' || s.maxHeight !== 'none';
-                    });
-                    const saved = oEls.map(el => ({ el, ov: el.style.overflow, mh: el.style.maxHeight }));
-                    oEls.forEach(el => { el.style.overflow='visible'; el.style.maxHeight='none'; });
+                    // 1) รอให้ฟอนต์ Sarabun โหลดเสร็จ
+                    await document.fonts.load('400 16px Sarabun');
+                    await document.fonts.load('600 16px Sarabun');
+                    await document.fonts.ready;
 
                     const canvas = await html2canvas(target, {
                         scale: 1.5,
                         backgroundColor: '#ffffff',
                         useCORS: true,
+                        allowTaint: false,
                         logging: false,
                         width: target.scrollWidth,
                         height: target.scrollHeight,
+                        // 2) ใน clone: แปลง input/textarea → span + คืน overflow + ฉีด font
+                        onclone: (doc, el) => {
+                            // ฉีด Sarabun ให้ document clone (html2canvas ใช้ doc แยก)
+                            const style = doc.createElement('style');
+                            style.textContent = `
+                                @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+                                * { font-family: 'Sarabun', 'TH Sarabun New', sans-serif !important; box-sizing: border-box; }
+                                table { border-collapse: collapse; }
+                            `;
+                            doc.head.appendChild(style);
+
+                            // แปลง input/textarea เป็น div ธรรมดา
+                            el.querySelectorAll('input[type="text"], textarea').forEach(inp => {
+                                const div = doc.createElement('div');
+                                div.textContent = inp.value;
+                                div.style.cssText = `
+                                    font-family:'Sarabun',sans-serif;
+                                    font-size:${getComputedStyle(inp).fontSize};
+                                    font-weight:${getComputedStyle(inp).fontWeight};
+                                    text-align:center;
+                                    width:100%;
+                                    display:inline-block;
+                                    color:#1f2937;
+                                `;
+                                inp.parentNode.replaceChild(div, inp);
+                            });
+
+                            // ขยาย overflow ทั้งหมด
+                            el.querySelectorAll('*').forEach(e => {
+                                e.style.overflow = 'visible';
+                                e.style.maxHeight = 'none';
+                            });
+                        }
                     });
 
-                    // คืนสภาพ
-                    inputs.forEach(inp => { if(inp._span){inp._span.remove();delete inp._span;} inp.style.display=''; });
-                    saved.forEach(({el,ov,mh}) => { el.style.overflow=ov; el.style.maxHeight=mh; });
                     setIsCapturing(false);
-
                     canvas.toBlob(async blob => {
-                        if(!blob){ showToast('สร้างภาพไม่สำเร็จ','error'); return; }
+                        if (!blob) { showToast('สร้างภาพไม่สำเร็จ', 'error'); return; }
                         try {
-                            await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+                            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
                             showToast('คัดลอกภาพสำเร็จ — วาง (Ctrl+V) ได้เลย');
                         } catch {
                             const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a'); a.href=url; a.download=`slip_${selectedDate}.png`; a.click();
+                            const a = document.createElement('a');
+                            a.href = url; a.download = `slip_${selectedDate}.png`; a.click();
                             URL.revokeObjectURL(url);
-                            showToast('ดาวน์โหลดไฟล์ภาพแล้ว (เบราว์เซอร์นี้ไม่รองรับการคัดลอกภาพโดยตรง)', 'info');
+                            showToast('ดาวน์โหลดไฟล์ภาพแล้ว (เบราว์เซอร์นี้ไม่รองรับการคัดลอกภาพ)', 'info');
                         }
                     }, 'image/png');
-                } catch(err) {
+                } catch (err) {
                     setIsCapturing(false);
                     showToast('จับภาพไม่สำเร็จ: ' + err.message, 'error');
                 }
@@ -2097,11 +2160,12 @@
                         )}
                         {tab === 'autoRules' && (
                             <div className="max-w-xl"><h2 className="text-xl font-bold text-gray-800 mb-6 border-b pb-2">ตั้งค่าเงื่อนไขระบบจัดอัตโนมัติ (Auto-Assign)</h2>
-                                <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.target); actions.updateSysConfig({ ...db.sysConfig, autoRules: { mustMatchDept: fd.get('mustMatchDept') === 'on', mustMatchGrade: fd.get('mustMatchGrade') === 'on', balanceLoad: fd.get('balanceLoad') === 'on', ignoreMaxLoadIfEmpty: fd.get('ignoreMaxLoadIfEmpty') === 'on' } }); }} className="space-y-4 bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm">
+                                <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.target); actions.updateSysConfig({ ...db.sysConfig, autoRules: { mustMatchDept: fd.get('mustMatchDept') === 'on', mustMatchGrade: fd.get('mustMatchGrade') === 'on', balanceLoad: fd.get('balanceLoad') === 'on', ignoreMaxLoadIfEmpty: fd.get('ignoreMaxLoadIfEmpty') === 'on', prioritizeReservations: fd.get('prioritizeReservations') === 'on' } }); }} className="space-y-4 bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm">
                                     <div className="flex items-center justify-between p-3 bg-white border rounded-lg"><div><span className="font-semibold text-gray-800">ต้องตรงกลุ่มสาระฯ</span><p className="text-xs text-gray-500">ครูที่สอนแทนต้องอยู่กลุ่มสาระเดียวกับวิชา</p></div><ToggleSwitch name="mustMatchDept" defaultChecked={db.sysConfig.autoRules.mustMatchDept} /></div>
                                     <div className="flex items-center justify-between p-3 bg-white border rounded-lg"><div><span className="font-semibold text-gray-800">ต้องตรงระดับชั้น</span><p className="text-xs text-gray-500">ครูที่สอนแทนต้องสอนในระดับชั้นนั้นอยู่แล้ว</p></div><ToggleSwitch name="mustMatchGrade" defaultChecked={db.sysConfig.autoRules.mustMatchGrade} /></div>
                                     <div className="flex items-center justify-between p-3 bg-white border rounded-lg"><div><span className="font-semibold text-gray-800">กระจายภาระงาน (Load Balancing)</span><p className="text-xs text-gray-500">ให้ความสำคัญกับคนที่สอนแทนน้อยกว่าในสัปดาห์นี้</p></div><ToggleSwitch name="balanceLoad" defaultChecked={db.sysConfig.autoRules.balanceLoad} /></div>
                                     <div className="flex items-center justify-between p-3 bg-white border rounded-lg border-yellow-300 bg-yellow-50"><div><span className="font-semibold text-yellow-800">อนุญาตให้จัดครูที่ลิมิตเต็ม (หากไม่มีคนว่าง)</span><p className="text-xs text-yellow-700">บังคับจับคู่ครูแม้คาบสอนวันนั้นจะเต็มลิมิต</p></div><ToggleSwitch name="ignoreMaxLoadIfEmpty" defaultChecked={db.sysConfig.autoRules.ignoreMaxLoadIfEmpty} /></div>
+                                    <div className="flex items-center justify-between p-3 bg-white border rounded-lg border-orange-300 bg-orange-50"><div><span className="font-semibold text-orange-800">ให้ผู้จองสอนแทนได้ก่อน (★ จองได้ก่อน)</span><p className="text-xs text-orange-700">ครูที่จองห้อง/ชั้นนั้นไว้จะได้คะแนนสูงกว่าในการจับคู่อัตโนมัติ</p></div><ToggleSwitch name="prioritizeReservations" defaultChecked={db.sysConfig.autoRules?.prioritizeReservations !== false} /></div>
                                     <div className="pt-4"><button type="submit" className="w-full bg-blue-600 text-white font-medium py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center"><i className="fas fa-save mr-2"></i> บันทึกเงื่อนไข</button></div>
                                 </form>
                             </div>
@@ -2111,7 +2175,7 @@
                         {tab === 'dept' && <SimpleCrud title="จัดการกลุ่มสาระฯ" data={db.departments} columns={[{key:'id', label:'รหัส'}, {key:'name', label:'ชื่อกลุ่มสาระ'}]} onSave={actions.addDept} onToggle={actions.toggleDept} onDelete={actions.delDept} askConfirm={askConfirm} showBulkDelete={true} onDeleteBulk={(ids)=>actions.delBulk('departments', ids)} />}
                         {tab === 'grade' && <SimpleCrud title="จัดการระดับชั้น" data={db.grades} columns={[{key:'id', label:'รหัส'}, {key:'name', label:'ระดับชั้น'}]} onSave={actions.addGrade} onToggle={actions.toggleGrade} onDelete={actions.delGrade} askConfirm={askConfirm} showBulkDelete={true} onDeleteBulk={(ids)=>actions.delBulk('grades', ids)} />}
                         {tab === 'room' && <SimpleCrud title="จัดการห้องเรียน" data={db.rooms} columns={[{key:'id', label:'รหัส'}, {key:'name', label:'เลขห้อง'}, {key:'grade', label:'ระดับชั้น', type:'select', options: db.grades.map(g=>g.name)}, {key:'classGroup', label:'ห้อง/ทับ'}]} onSave={actions.addRoom} onToggle={actions.toggleRoom} onDelete={actions.delRoom} askConfirm={askConfirm} />}
-                        {tab === 'subj' && <SubjectCrud data={db.subjects} terms={db.terms.filter(t=>t.isActive)} departments={db.departments.filter(d=>d.isActive)} grades={db.grades.filter(g=>g.isActive)} onSave={actions.addSubj} onToggle={actions.toggleSubj} onDelete={actions.delSubj} askConfirm={askConfirm} onDeleteBulk={(ids)=>actions.delBulk('subjects', ids)} showToast={showToast} />}
+                        {tab === 'subj' && <SubjectCrud data={db.subjects} terms={db.terms.filter(t=>t.isActive)} departments={db.departments.filter(d=>d.isActive)} grades={db.grades.filter(g=>g.isActive)} rooms={db.rooms.filter(r=>r.isActive)} onSave={actions.addSubj} onToggle={actions.toggleSubj} onDelete={actions.delSubj} askConfirm={askConfirm} onDeleteBulk={(ids)=>actions.delBulk('subjects', ids)} showToast={showToast} />}
                         {tab === 'teacher' && <TeacherCrud data={db.teachers} depts={db.departments.map(d=>d.name)} grades={db.grades.map(g=>g.name)} onSave={actions.addTeacher} onToggle={actions.toggleTeacher} onDelete={actions.delTeacher} onAddBulk={actions.addTeacherBulk} onDeleteBulk={actions.deleteTeacherBulk} sysConfig={db.sysConfig} showToast={showToast} askConfirm={askConfirm} />}
                         {tab === 'timetable' && <TimetableManager manageTermId={manageTermId} termName={db.terms.find(t=>t.id===manageTermId)?.name} teachers={db.teachers.filter(t=>t.role==='teacher' && t.isActive)} departments={db.departments.filter(d=>d.isActive)} timetables={db.timetables} subjects={db.subjects.filter(s=>s.isActive)} allSubjects={db.subjects.filter(s=>s.isActive)} rooms={db.rooms.filter(r=>r.isActive)} addTimetableSlot={actions.addTimetableSlot} delTimetableSlot={actions.delTimetableSlot} onAddBulk={actions.addTimetableBulk} onDeleteBulk={actions.deleteTimetableBulk} showToast={showToast} askConfirm={askConfirm} />}
                     </div>
@@ -2347,7 +2411,7 @@
         // ========================================================
         // SubjectCrud — จัดการรายวิชา พร้อม CSV Import/Export และกรองตามภาคเรียน
         // ========================================================
-        const SubjectCrud = ({ data, terms, departments, grades, onSave, onToggle, onDelete, onDeleteBulk, askConfirm, showToast }) => {
+        const SubjectCrud = ({ data, terms, departments, grades, rooms, onSave, onToggle, onDelete, onDeleteBulk, askConfirm, showToast }) => {
             const [editItem, setEditItem] = useState({ isNew: true });
             const [isEditing, setIsEditing] = useState(false);
             const [selectedIds, setSelectedIds] = useState([]);
@@ -2462,8 +2526,14 @@
                                 <div><label className="block text-xs font-semibold text-gray-700 mb-1">รหัสวิชา</label><input required type="text" placeholder="ค22101" className="w-full border rounded-lg p-2 text-sm" value={editItem.code||''} onChange={e=>setEditItem({...editItem,code:e.target.value})} /></div>
                                 <div><label className="block text-xs font-semibold text-gray-700 mb-1">ชื่อวิชา</label><input required type="text" placeholder="คณิตศาสตร์พื้นฐาน" className="w-full border rounded-lg p-2 text-sm" value={editItem.name||''} onChange={e=>setEditItem({...editItem,name:e.target.value})} /></div>
                                 <div><label className="block text-xs font-semibold text-gray-700 mb-1">กลุ่มสาระฯ</label><select required className="w-full border rounded-lg p-2 text-sm bg-white" value={editItem.dept||''} onChange={e=>setEditItem({...editItem,dept:e.target.value})}><option value="" disabled>-- เลือก --</option>{departments.map(d=><option key={d.id} value={d.name}>{d.name}</option>)}</select></div>
-                                <div><label className="block text-xs font-semibold text-gray-700 mb-1">ระดับชั้น</label><select required className="w-full border rounded-lg p-2 text-sm bg-white" value={editItem.grade||''} onChange={e=>setEditItem({...editItem,grade:e.target.value})}><option value="" disabled>-- เลือก --</option>{grades.map(g=><option key={g.id} value={g.name}>{g.name}</option>)}</select></div>
-                                <div><label className="block text-xs font-semibold text-gray-700 mb-1">ห้อง</label><input type="text" placeholder="ทั้งหมด หรือ 111, 112" className="w-full border rounded-lg p-2 text-sm" value={editItem.room||''} onChange={e=>setEditItem({...editItem,room:e.target.value})} /></div>
+                                <div><label className="block text-xs font-semibold text-gray-700 mb-1">ระดับชั้น</label><select required className="w-full border rounded-lg p-2 text-sm bg-white" value={editItem.grade||''} onChange={e=>setEditItem({...editItem,grade:e.target.value,room:'ทั้งหมด'})}><option value="" disabled>-- เลือก --</option>{grades.map(g=><option key={g.id} value={g.name}>{g.name}</option>)}</select></div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1">ห้องเรียน</label>
+                                    <select className="w-full border rounded-lg p-2 text-sm bg-white" value={editItem.room||'ทั้งหมด'} onChange={e=>setEditItem({...editItem,room:e.target.value})}>
+                                        <option value="ทั้งหมด">ทั้งหมด (ทุกห้องในชั้นนี้)</option>
+                                        {(editItem.grade ? rooms.filter(r=>r.grade===editItem.grade) : rooms).map(r=><option key={r.id} value={r.name}>{r.name} — {r.classGroup}</option>)}
+                                    </select>
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-gray-700 mb-2"><i className="fas fa-calendar-check text-indigo-500 mr-1"></i>ใช้ในภาคเรียน (เลือกได้หลายภาค ถ้าไม่เลือก = ใช้ได้ทุกเทอม)</label>
