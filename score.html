@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th"> 
+<html lang="th">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -254,14 +254,14 @@ var seed=42;function sR(){seed=(seed*16807)%2147483647;return(seed-1)/2147483646
 function buildDemoDB(){
 var DB={
 terms:[{id:1,year:2568,semester:1,label:'ภาคเรียนที่ 1 ปีการศึกษา 2568',active:true}],
-settings:{systemEnabled:true,currentTermId:1,systemName:'EduScore',systemIcon:'fa-graduation-cap'},
+settings:{systemEnabled:true,currentTermId:1,systemName:'EduScore',systemIcon:'fa-graduation-cap',attendanceThresholdPercent:80},
 announcements:[],
 attendanceStatuses:[
-{id:1,key:'present',label:'มาเรียน',points:0,color:'#059669',active:true},
-{id:2,key:'absent',label:'ขาด',points:-2,color:'#DC2626',active:true},
-{id:3,key:'late',label:'มาสาย',points:-1,color:'#EA580C',active:true},
-{id:4,key:'leave',label:'ลากิจ',points:0,color:'#2563EB',active:true},
-{id:5,key:'leave-early',label:'ออกกลางคาบ',points:-1,color:'#D97706',active:true}
+{id:1,key:'present',label:'มาเรียน',points:0,color:'#059669',active:true,countsAsAbsent:false},
+{id:2,key:'absent',label:'ขาด',points:-2,color:'#DC2626',active:true,countsAsAbsent:true},
+{id:3,key:'late',label:'มาสาย',points:-1,color:'#EA580C',active:true,countsAsAbsent:false},
+{id:4,key:'leave',label:'ลากิจ',points:0,color:'#2563EB',active:true,countsAsAbsent:true},
+{id:5,key:'leave-early',label:'ออกกลางคาบ',points:-1,color:'#D97706',active:true,countsAsAbsent:false}
 ],
 subjectGroups:[
 {id:1,name:'กลุ่มสาระการเรียนรู้คณิตศาสตร์',active:true},
@@ -415,7 +415,7 @@ function getAllTcCls(tcId){return[...new Set(curAssignments().filter(function(a)
 function getCategories(tcId,subId){return DB.scoreCategories.filter(function(c){return c.teacherId===tcId&&c.subjectId===subId;});}
 function catGroupClass(g){if(g==='สอบ')return'cat-exam';if(g==='พฤติกรรม')return'cat-behavior';if(g==='งาน')return'cat-work';return'cat-other';}
 function activeE(a){return a.filter(function(x){return x.active!==false;});}
-function nxId(a){return a.length?Math.max.apply(null,a.map(function(x){return x.id;}))+1:1;}
+function nxId(a){a=a||[];return a.length?Math.max.apply(null,a.map(function(x){return x.id;}))+1:1;}
 /* สถานะการเข้าเรียน — ตั้งค่าได้จากเมนูแอดมิน */
 function getAttStatuses(){return(DB.attendanceStatuses&&DB.attendanceStatuses.length)?activeE(DB.attendanceStatuses):[{id:1,key:'present',label:'มาเรียน',points:0,color:'#059669',active:true},{id:2,key:'absent',label:'ขาด',points:-2,color:'#DC2626',active:true}];}
 function attStatus(key){return getAttStatuses().find(function(s){return s.key===key;})||{key:key,label:key,points:0,color:'#6B7280'};}
@@ -441,6 +441,24 @@ if(sc){totalS+=sc.total*w;totalW+=w;}else{totalW+=w;}
 return totalW>0?Math.round(totalS/totalW*100)/100:0;
 }
 
+/** สรุปการเข้าเรียนของนักเรียนคนหนึ่งในวิชา/ห้องหนึ่ง ณ ภาคเรียนปัจจุบัน
+ * คำนวณจากคาบเรียนที่ "เช็คชื่อไปแล้ว" เท่านั้น (ไม่ใช่คาบเรียนทั้งหมดที่จะมีตลอดภาคเรียน) */
+function getAttendanceSummary(studentId,subjectId,classroomId){
+var tId=curTermId();
+var recs=DB.attendance.filter(function(a){return a.subjectId===subjectId&&a.classroomId===classroomId&&(a.termId==null||tId==null||a.termId===tId);});
+var total=recs.length;
+var absentCount=0;
+recs.forEach(function(a){
+var r=a.records.find(function(x){return x.studentId===studentId;});
+if(r&&attStatus(r.status).countsAsAbsent)absentCount++;
+});
+var thr=(DB.settings&&DB.settings.attendanceThresholdPercent!=null)?DB.settings.attendanceThresholdPercent:80;
+var percent=total>0?Math.round((total-absentCount)/total*1000)/10:100;
+var allowedAbsences=Math.floor(total*(1-thr/100));
+var remaining=allowedAbsences-absentCount;
+return{total:total,absentCount:absentCount,percent:percent,threshold:thr,allowedAbsences:allowedAbsences,remaining:remaining,isFail:total>0&&percent<thr};
+}
+
 /* ======================================================================
    BOOTSTRAP — โหลดข้อมูลจริงจาก backend หรือใช้ข้อมูลทดลอง
    ====================================================================== */
@@ -455,6 +473,8 @@ async function bootApp(){
       if(!DB.users||!DB.users.length){
         showToast('ฐานข้อมูลว่างเปล่า—กรุณารัน seedDemoData() ใน Apps Script หรือเพิ่มข้อมูลก่อน','info');
         DB=buildDemoDB();
+      }else if(!DB.announcements||!DB.terms||!DB.attendanceStatuses||!DB.settings){
+        showToast('เซิร์ฟเวอร์ยังเป็นเวอร์ชันเก่า กรุณาอัปเดต Code.gs ในโปรเจกต์ Apps Script เป็นเวอร์ชันล่าสุด','info');
       }
     }catch(e){
       DB=buildDemoDB();
@@ -463,10 +483,31 @@ async function bootApp(){
   }else{
     DB=buildDemoDB();
   }
+  normalizeDB();
   $('connBadge').className=badgeCls;$('connBadge').innerHTML=badgeTxt;
   applyBranding();
   $('bootOverlay').classList.add('hidden');
   $('loginPage').classList.remove('hidden');
+}
+
+/** ป้องกัน field สำคัญขาดหาย เผื่อฝั่งเซิร์ฟเวอร์เป็นเวอร์ชันเก่ากว่าหน้าเว็บ */
+function normalizeDB(){
+  if(!Array.isArray(DB.announcements))DB.announcements=[];
+  if(!Array.isArray(DB.terms))DB.terms=[];
+  if(!Array.isArray(DB.attendanceStatuses)||!DB.attendanceStatuses.length)DB.attendanceStatuses=[
+    {id:1,key:'present',label:'มาเรียน',points:0,color:'#059669',active:true,countsAsAbsent:false},
+    {id:2,key:'absent',label:'ขาด',points:-2,color:'#DC2626',active:true,countsAsAbsent:true},
+    {id:3,key:'late',label:'มาสาย',points:-1,color:'#EA580C',active:true,countsAsAbsent:false},
+    {id:4,key:'leave',label:'ลากิจ',points:0,color:'#2563EB',active:true,countsAsAbsent:true},
+    {id:5,key:'leave-early',label:'ออกกลางคาบ',points:-1,color:'#D97706',active:true,countsAsAbsent:false}
+  ];
+  DB.attendanceStatuses.forEach(function(s){if(s.countsAsAbsent===undefined)s.countsAsAbsent=(s.key==='absent'||s.key==='leave');});
+  if(!DB.settings||typeof DB.settings!=='object')DB.settings={};
+  if(DB.settings.systemEnabled===undefined)DB.settings.systemEnabled=true;
+  if(DB.settings.currentTermId===undefined||DB.settings.currentTermId===null)DB.settings.currentTermId=DB.terms[0]?DB.terms[0].id:null;
+  if(!DB.settings.systemName)DB.settings.systemName='EduScore';
+  if(!DB.settings.systemIcon)DB.settings.systemIcon='fa-graduation-cap';
+  if(DB.settings.attendanceThresholdPercent===undefined||DB.settings.attendanceThresholdPercent===null)DB.settings.attendanceThresholdPercent=80;
 }
 
 /** นำชื่อ/ไอคอนระบบที่แอดมินตั้งค่าไว้ไปแสดงผลทั่วทั้งแอป */
@@ -571,10 +612,13 @@ if(lowCnt)out.push({icon:'fa-arrow-trend-down',type:'warning',text:subCode(subId
 });
 getAllTcCls(tcId).forEach(function(clsId){
 var sts=activeE(DB.students.filter(function(s){return s.classroomId===clsId;}));
+getTeacherSubjects(tcId).forEach(function(subId){
 sts.forEach(function(st){
-var absentCnt=0;
-DB.attendance.filter(function(a){return a.teacherId===tcId&&a.classroomId===clsId;}).forEach(function(a){var r=a.records.find(function(x){return x.studentId===st.id;});if(r&&r.status==='absent')absentCnt++;});
-if(absentCnt>=3)out.push({icon:'fa-user-clock',type:'warning',text:st.name+' ('+clsName(clsId)+') ขาดเรียนสะสม '+absentCnt+' ครั้ง'});
+var sum=getAttendanceSummary(st.id,subId,clsId);
+if(sum.total>0&&(sum.isFail||sum.remaining<=1)){
+out.push({icon:'fa-user-clock',type:'warning',text:st.name+' ('+clsName(clsId)+' — '+subCode(subId)+') '+(sum.isFail?'ต่ำกว่าเกณฑ์เข้าเรียนแล้ว ('+sum.percent+'%)':'เสี่ยง "มส" เหลืออีก '+Math.max(0,sum.remaining)+' ครั้ง')});
+}
+});
 });
 });
 }else if(role==='student'){
@@ -585,9 +629,13 @@ subIds.forEach(function(subId){
 var sc=DB.scores.find(function(s){return s.studentId===st.id&&s.subjectId===subId&&s.classroomId===st.classroomId&&(s.termId==null||curTermId()==null||s.termId===curTermId());});
 if(sc&&sc.total<50)out.push({icon:'fa-triangle-exclamation',type:'warning',text:subCode(subId)+' '+subName(subId)+': คะแนนปัจจุบัน '+sc.total.toFixed(1)+' (ต่ำกว่าเกณฑ์ผ่าน)'});
 });
-var absentCnt=0;
-DB.attendance.forEach(function(a){var r=a.records.find(function(x){return x.studentId===st.id;});if(r&&r.status==='absent')absentCnt++;});
-if(absentCnt>=3)out.push({icon:'fa-user-clock',type:'warning',text:'คุณขาดเรียนสะสม '+absentCnt+' ครั้ง กรุณาติดต่อครูที่ปรึกษา'});
+var mySubIds=[...new Set(curAssignments().filter(function(a){return a.classroomIds.includes(st.classroomId);}).map(function(a){return a.subjectId;}))];
+mySubIds.forEach(function(subId){
+var sum=getAttendanceSummary(st.id,subId,st.classroomId);
+if(sum.total>0&&(sum.isFail||sum.remaining<=1)){
+out.push({icon:'fa-user-clock',type:'warning',text:subCode(subId)+' '+subName(subId)+': '+(sum.isFail?'การเข้าเรียนต่ำกว่าเกณฑ์แล้ว ('+sum.percent+'%)':'เสี่ยง "มส" เหลืออีก '+Math.max(0,sum.remaining)+' ครั้ง')});
+}
+});
 }
 }
 return out;
@@ -929,11 +977,22 @@ function setCurrentTerm(id){var t=DB.terms.find(function(x){return x.id===id;});
 
 function renderSettingsAttStatus(){
 var list=DB.attendanceStatuses||[];
-return'<div class="bg-white rounded-xl shadow-sm overflow-x-auto"><div class="flex justify-between items-center px-4 pt-4"><p class="text-xs sm:text-sm" style="color:var(--muted)">กำหนดสถานะการเข้าเรียนและคะแนนของแต่ละสถานะ (ใช้คำนวณคะแนนพฤติกรรมอัตโนมัติ)</p><button class="btn btn-p btn-sm" onclick="openAttStatusModal()"><i class="fas fa-plus"></i> เพิ่มสถานะ</button></div><table class="dt w-full mt-2"><thead><tr><th>สี</th><th>ชื่อสถานะ</th><th>คีย์</th><th>คะแนน</th><th>สถานะ</th><th class="no-print">จัดการ</th></tr></thead><tbody>'
-+(list.length?list.map(function(s){return'<tr><td><span style="display:inline-block;width:20px;height:20px;border-radius:6px;background:'+s.color+'"></span></td><td class="font-semibold">'+s.label+'</td><td><span class="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">'+s.key+'</span></td><td class="text-center font-bold '+(s.points<0?'text-red-600':s.points>0?'text-green-600':'text-gray-500')+'">'+(s.points>0?'+':'')+s.points+'</td><td><label class="toggle"><input type="checkbox" '+(s.active!==false?'checked':'')+' onchange="toggleEntity(\'attendanceStatuses\','+s.id+')"><span class="sl"></span></label></td><td class="flex gap-1 no-print"><button class="btn btn-o btn-sm" onclick="openAttStatusModal('+s.id+')"><i class="fas fa-edit"></i></button><button class="btn btn-d btn-sm" onclick="showConfirm(\'ลบสถานะนี้? (ประวัติเช็คชื่อเดิมที่ใช้สถานะนี้จะยังแสดงคีย์เดิมไว้)\',function(){DB.attendanceStatuses=DB.attendanceStatuses.filter(function(x){return x.id!=='+s.id+';});apiCall(\'delete\',{sheet:\'attendanceStatuses\',id:'+s.id+'});showToast(\'ลบสำเร็จ\');navigate(\'systemSettings\');})"><i class="fas fa-trash"></i></button></td></tr>';}).join(''):emptyState('fa-clipboard-check','ยังไม่มีสถานะการเข้าเรียน',6))
+var thr=DB.settings.attendanceThresholdPercent!=null?DB.settings.attendanceThresholdPercent:80;
+var html='<div class="bg-white rounded-xl shadow-sm p-5 sm:p-6 mb-4 max-w-xl"><h3 class="font-display font-bold mb-1">เกณฑ์การเข้าเรียนขั้นต่ำ (สำหรับ "มส")</h3><p class="text-xs mb-3" style="color:var(--muted)">นักเรียนที่มีเปอร์เซ็นต์การเข้าเรียนต่ำกว่าเกณฑ์นี้ในรายวิชาใด จะถือว่าเสี่ยง "มส" (หมดสิทธิ์สอบ) ในวิชานั้น</p><div class="flex items-center gap-3"><input id="attThreshold" type="number" min="0" max="100" class="fi" style="width:100px" value="'+thr+'"><span class="text-sm">%</span><button class="btn btn-p btn-sm" onclick="saveAttThreshold()"><i class="fas fa-save"></i> บันทึกเกณฑ์</button></div></div>';
+html+='<div class="bg-white rounded-xl shadow-sm overflow-x-auto"><div class="flex justify-between items-center px-4 pt-4"><p class="text-xs sm:text-sm" style="color:var(--muted)">กำหนดสถานะการเข้าเรียนและคะแนนของแต่ละสถานะ (ใช้คำนวณคะแนนพฤติกรรมและสรุปการเข้าเรียนอัตโนมัติ)</p><button class="btn btn-p btn-sm" onclick="openAttStatusModal()"><i class="fas fa-plus"></i> เพิ่มสถานะ</button></div><table class="dt w-full mt-2"><thead><tr><th>สี</th><th>ชื่อสถานะ</th><th>คีย์</th><th>คะแนน</th><th>นับเป็นขาด</th><th>สถานะ</th><th class="no-print">จัดการ</th></tr></thead><tbody>'
++(list.length?list.map(function(s){return'<tr><td><span style="display:inline-block;width:20px;height:20px;border-radius:6px;background:'+s.color+'"></span></td><td class="font-semibold">'+s.label+'</td><td><span class="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">'+s.key+'</span></td><td class="text-center font-bold '+(s.points<0?'text-red-600':s.points>0?'text-green-600':'text-gray-500')+'">'+(s.points>0?'+':'')+s.points+'</td><td class="text-center">'+(s.countsAsAbsent?'<span class="cat-badge cat-behavior">นับ</span>':'<span class="text-gray-400 text-xs">ไม่นับ</span>')+'</td><td><label class="toggle"><input type="checkbox" '+(s.active!==false?'checked':'')+' onchange="toggleEntity(\'attendanceStatuses\','+s.id+')"><span class="sl"></span></label></td><td class="flex gap-1 no-print"><button class="btn btn-o btn-sm" onclick="openAttStatusModal('+s.id+')"><i class="fas fa-edit"></i></button><button class="btn btn-d btn-sm" onclick="showConfirm(\'ลบสถานะนี้? (ประวัติเช็คชื่อเดิมที่ใช้สถานะนี้จะยังแสดงคีย์เดิมไว้)\',function(){DB.attendanceStatuses=DB.attendanceStatuses.filter(function(x){return x.id!=='+s.id+';});apiCall(\'delete\',{sheet:\'attendanceStatuses\',id:'+s.id+'});showToast(\'ลบสำเร็จ\');navigate(\'systemSettings\');})"><i class="fas fa-trash"></i></button></td></tr>';}).join(''):emptyState('fa-clipboard-check','ยังไม่มีสถานะการเข้าเรียน',7))
 +'</tbody></table></div>';
+return html;
 }
-function openAttStatusModal(id){var s=id?DB.attendanceStatuses.find(function(x){return x.id===id;}):null;showModal(s?'แก้ไขสถานะ':'เพิ่มสถานะการเข้าเรียน','<div class="p-4 sm:p-6 space-y-3"><div><label class="block text-xs font-semibold mb-1">ชื่อสถานะ</label><input id="mAsN" class="fi" value="'+(s?s.label:'')+'"><div id="mAsNErr"></div></div><div><label class="block text-xs font-semibold mb-1">คีย์ (ภาษาอังกฤษ ไม่มีเว้นวรรค เช่น sick-leave)</label><input id="mAsK" class="fi" value="'+(s?s.key:'')+'" '+(s?'readonly style="background:#F3F4F6"':'')+'><div id="mAsKErr"></div></div><div class="grid grid-cols-2 gap-3"><div><label class="block text-xs font-semibold mb-1">คะแนน (ติดลบ=หัก, บวก=เพิ่ม)</label><input id="mAsP" type="number" class="fi" value="'+(s?s.points:'0')+'"></div><div><label class="block text-xs font-semibold mb-1">สีป้าย</label><input id="mAsC" type="color" class="fi" style="height:38px;padding:2px" value="'+(s?s.color:'#0E7C6B')+'"></div></div></div>',function(){var ne=$('mAsN'),ke=$('mAsK');clearInvalid(ne);clearInvalid(ke);$('mAsNErr').innerHTML='';$('mAsKErr').innerHTML='';var n=ne.value.trim(),k=ke.value.trim().toLowerCase().replace(/\\s+/g,'-'),p=+$('mAsP').value||0,c=$('mAsC').value;if(!n){markInvalid(ne);$('mAsNErr').innerHTML='<div class="field-err"><i class="fas fa-circle-exclamation"></i>กรอกชื่อสถานะ</div>';return;}if(!k){markInvalid(ke);$('mAsKErr').innerHTML='<div class="field-err"><i class="fas fa-circle-exclamation"></i>กรอกคีย์สถานะ</div>';return;}if(!id&&DB.attendanceStatuses.some(function(x){return x.key===k;})){markInvalid(ke);$('mAsKErr').innerHTML='<div class="field-err"><i class="fas fa-circle-exclamation"></i>คีย์นี้ถูกใช้แล้ว</div>';return;}var rec;if(id){rec=DB.attendanceStatuses.find(function(x){return x.id===id;});rec.label=n;rec.points=p;rec.color=c;}else{rec={id:nxId(DB.attendanceStatuses),key:k,label:n,points:p,color:c,active:true};DB.attendanceStatuses.push(rec);}apiCall('upsert',{sheet:'attendanceStatuses',data:rec});showToast(id?'แก้ไขสำเร็จ':'เพิ่มสำเร็จ');hideModal();navigate('systemSettings');});}
+function saveAttThreshold(){
+var v=+$('attThreshold').value;
+if(isNaN(v)||v<0||v>100){showToast('กรอกเปอร์เซ็นต์ระหว่าง 0-100','error');return;}
+DB.settings.attendanceThresholdPercent=v;
+saveSettingsToServer();
+showToast('บันทึกเกณฑ์การเข้าเรียนสำเร็จ');
+navigate('systemSettings');
+}
+function openAttStatusModal(id){var s=id?DB.attendanceStatuses.find(function(x){return x.id===id;}):null;showModal(s?'แก้ไขสถานะ':'เพิ่มสถานะการเข้าเรียน','<div class="p-4 sm:p-6 space-y-3"><div><label class="block text-xs font-semibold mb-1">ชื่อสถานะ</label><input id="mAsN" class="fi" value="'+(s?s.label:'')+'"><div id="mAsNErr"></div></div><div><label class="block text-xs font-semibold mb-1">คีย์ (ภาษาอังกฤษ ไม่มีเว้นวรรค เช่น sick-leave)</label><input id="mAsK" class="fi" value="'+(s?s.key:'')+'" '+(s?'readonly style="background:#F3F4F6"':'')+'><div id="mAsKErr"></div></div><div class="grid grid-cols-2 gap-3"><div><label class="block text-xs font-semibold mb-1">คะแนน (ติดลบ=หัก, บวก=เพิ่ม)</label><input id="mAsP" type="number" class="fi" value="'+(s?s.points:'0')+'"></div><div><label class="block text-xs font-semibold mb-1">สีป้าย</label><input id="mAsC" type="color" class="fi" style="height:38px;padding:2px" value="'+(s?s.color:'#0E7C6B')+'"></div></div><div><label class="flex items-center gap-2 text-sm"><input type="checkbox" id="mAsAbsent" '+(s&&s.countsAsAbsent?'checked':'')+'> นับสถานะนี้เป็น "ขาดเรียน" สำหรับคำนวณเปอร์เซ็นต์เข้าเรียน/มส</label></div></div>',function(){var ne=$('mAsN'),ke=$('mAsK');clearInvalid(ne);clearInvalid(ke);$('mAsNErr').innerHTML='';$('mAsKErr').innerHTML='';var n=ne.value.trim(),k=ke.value.trim().toLowerCase().replace(/\s+/g,'-'),p=+$('mAsP').value||0,c=$('mAsC').value,ca=$('mAsAbsent').checked;if(!n){markInvalid(ne);$('mAsNErr').innerHTML='<div class="field-err"><i class="fas fa-circle-exclamation"></i>กรอกชื่อสถานะ</div>';return;}if(!k){markInvalid(ke);$('mAsKErr').innerHTML='<div class="field-err"><i class="fas fa-circle-exclamation"></i>กรอกคีย์สถานะ</div>';return;}if(!id&&DB.attendanceStatuses.some(function(x){return x.key===k;})){markInvalid(ke);$('mAsKErr').innerHTML='<div class="field-err"><i class="fas fa-circle-exclamation"></i>คีย์นี้ถูกใช้แล้ว</div>';return;}var rec;if(id){rec=DB.attendanceStatuses.find(function(x){return x.id===id;});rec.label=n;rec.points=p;rec.color=c;rec.countsAsAbsent=ca;}else{rec={id:nxId(DB.attendanceStatuses),key:k,label:n,points:p,color:c,active:true,countsAsAbsent:ca};DB.attendanceStatuses.push(rec);}apiCall('upsert',{sheet:'attendanceStatuses',data:rec});showToast(id?'แก้ไขสำเร็จ':'เพิ่มสำเร็จ');hideModal();navigate('systemSettings');});}
 
 /* ---- สำรอง/กู้คืนข้อมูล ---- */
 function renderSettingsBackup(){
@@ -1068,6 +1127,19 @@ $('pfCurPass').value='';$('pfNewPass').value='';$('pfNewPass2').value='';
 }
 
 /* =================== ระบบประกาศ =================== */
+function isAnnouncementInSchedule(ann){
+var now=Date.now();
+if(ann.startAt&&now<new Date(ann.startAt).getTime())return false;
+if(ann.endAt&&now>new Date(ann.endAt).getTime())return false;
+return true;
+}
+function getAnnouncementStatusBadge(ann){
+if(ann.active===false)return{label:'ปิดอยู่ (ปิดเอง)',cls:'gv-off'};
+var now=Date.now();
+if(ann.startAt&&now<new Date(ann.startAt).getTime())return{label:'รอถึงเวลาแสดง',cls:'cat-badge cat-other'};
+if(ann.endAt&&now>new Date(ann.endAt).getTime())return{label:'หมดเวลาแสดงแล้ว',cls:'gv-off'};
+return{label:'กำลังแสดงอยู่',cls:'gv-on'};
+}
 function isAnnouncementRelevant(ann,user){
 var aud=ann.audience||['all'];
 if(aud.includes('all'))return true;
@@ -1091,7 +1163,7 @@ return false;
 return false;
 }
 function getRelevantAnnouncements(){
-return(DB.announcements||[]).filter(function(a){return a.active!==false&&isAnnouncementRelevant(a,ST.user);}).sort(function(a,b){return(b.createdAt||'').localeCompare(a.createdAt||'');});
+return(DB.announcements||[]).filter(function(a){return a.active!==false&&isAnnouncementInSchedule(a)&&isAnnouncementRelevant(a,ST.user);}).sort(function(a,b){return(b.createdAt||'').localeCompare(a.createdAt||'');});
 }
 function audienceLabel(aud){
 var labels=[];
@@ -1104,19 +1176,52 @@ else if(a.indexOf('subject:')===0)labels.push('วิชา '+subCode(+a.split('
 });
 return labels.join(', ')||'ทุกคน';
 }
+function fmtSchedText(ann){
+if(!ann.startAt&&!ann.endAt)return'';
+var parts=[];
+if(ann.startAt)parts.push('เริ่ม '+new Date(ann.startAt).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'}));
+if(ann.endAt)parts.push('สิ้นสุด '+new Date(ann.endAt).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'}));
+return parts.join(' • ');
+}
 function renderAnnouncements(){
 var canCreate=ST.user.role==='admin'||ST.user.role==='teacher';
-var list=getRelevantAnnouncements();
 var isManager=ST.user.role==='admin';
+var list=getRelevantAnnouncements();
 var html='<div class="pg-in">';
 if(canCreate)html+='<div class="flex justify-end mb-4 no-print"><button class="btn btn-p btn-sm" onclick="openAnnouncementModal()"><i class="fas fa-plus"></i> สร้างประกาศ</button></div>';
-if(!list.length){html+=emptyState('fa-bullhorn','ยังไม่มีประกาศในขณะนี้')+'</div>';return html;}
-html+='<div class="space-y-3">'+list.map(function(a){
-var canEdit=isManager||a.authorId===ST.user.id;
+
+if(!list.length)html+=emptyState('fa-bullhorn','ยังไม่มีประกาศที่แสดงผลในขณะนี้');
+else{
+html+='<div class="space-y-3 mb-6">'+list.map(function(a){
 var d=a.createdAt?new Date(a.createdAt).toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'-';
-return'<div class="bg-white rounded-xl shadow-sm p-4 sm:p-5"><div class="flex justify-between items-start gap-2"><div class="flex-1"><h3 class="font-display font-bold text-base mb-1">'+a.title+'</h3><p class="text-sm whitespace-pre-wrap mb-2">'+a.body+'</p><div class="flex items-center gap-2 flex-wrap text-xs" style="color:var(--muted)"><span><i class="fas fa-user mr-1"></i>'+a.authorName+'</span><span>•</span><span>'+d+'</span><span>•</span><span class="cat-badge cat-other">'+audienceLabel(a.audience)+'</span></div></div>'+(canEdit?'<div class="flex gap-1 no-print flex-shrink-0"><button class="btn btn-o btn-sm" onclick="openAnnouncementModal('+a.id+')"><i class="fas fa-edit"></i></button><button class="btn btn-d btn-sm" onclick="showConfirm(\'ลบประกาศนี้?\',function(){DB.announcements=DB.announcements.filter(function(x){return x.id!=='+a.id+';});apiCall(\'delete\',{sheet:\'announcements\',id:'+a.id+'});showToast(\'ลบสำเร็จ\');navigate(\'announcements\');})"><i class="fas fa-trash"></i></button></div>':'')+'</div></div>';
-}).join('')+'</div></div>';
+return'<div class="bg-white rounded-xl shadow-sm p-4 sm:p-5"><h3 class="font-display font-bold text-base mb-1">'+a.title+'</h3><p class="text-sm whitespace-pre-wrap mb-2">'+a.body+'</p><div class="flex items-center gap-2 flex-wrap text-xs" style="color:var(--muted)"><span><i class="fas fa-user mr-1"></i>'+a.authorName+'</span><span>•</span><span>'+d+'</span><span>•</span><span class="cat-badge cat-other">'+audienceLabel(a.audience)+'</span></div></div>';
+}).join('')+'</div>';
+}
+
+if(canCreate){
+var mine=(DB.announcements||[]).filter(function(a){return isManager||a.authorId===ST.user.id;}).sort(function(a,b){return(b.createdAt||'').localeCompare(a.createdAt||'');});
+html+='<div class="mt-2"><h3 class="font-display font-bold mb-3 text-sm" style="color:var(--muted)"><i class="fas fa-gear mr-1"></i> จัดการประกาศ'+(isManager?'ทั้งหมด':'ของฉัน')+' ('+mine.length+')</h3>';
+if(!mine.length)html+=emptyState('fa-bullhorn','คุณยังไม่เคยสร้างประกาศ');
+else{
+html+='<div class="space-y-2">'+mine.map(function(a){
+var badge=getAnnouncementStatusBadge(a);
+var canEdit=isManager||a.authorId===ST.user.id;
+var sched=fmtSchedText(a);
+return'<div class="bg-white rounded-xl shadow-sm p-3 sm:p-4 flex items-start gap-3"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 flex-wrap mb-1"><span class="font-semibold text-sm">'+a.title+'</span><span class="'+badge.cls+'">'+badge.label+'</span></div><div class="text-xs" style="color:var(--muted)">'+audienceLabel(a.audience)+(sched?' • '+sched:'')+'</div></div>'+(canEdit?'<div class="flex items-center gap-2 flex-shrink-0"><label class="toggle" title="เปิด/ปิดประกาศด้วยตนเอง"><input type="checkbox" '+(a.active!==false?'checked':'')+' onchange="toggleAnnouncementActive('+a.id+',this)"><span class="sl"></span></label><button class="btn btn-o btn-sm" onclick="openAnnouncementModal('+a.id+')"><i class="fas fa-edit"></i></button><button class="btn btn-d btn-sm" onclick="showConfirm(\'ลบประกาศนี้?\',function(){DB.announcements=DB.announcements.filter(function(x){return x.id!=='+a.id+';});apiCall(\'delete\',{sheet:\'announcements\',id:'+a.id+'});showToast(\'ลบสำเร็จ\');navigate(\'announcements\');})"><i class="fas fa-trash"></i></button></div>':'')+'</div>';
+}).join('')+'</div>';
+}
+html+='</div>';
+}
+html+='</div>';
 return html;
+}
+function toggleAnnouncementActive(id,el){
+var a=DB.announcements.find(function(x){return x.id===id;});
+if(!a)return;
+a.active=el.checked;
+apiCall('upsert',{sheet:'announcements',data:a});
+showToast(el.checked?'เปิดแสดงประกาศแล้ว':'ปิดประกาศแล้ว');
+navigate('announcements');
 }
 function openAnnouncementModal(id){
 var a=id?DB.announcements.find(function(x){return x.id===id;}):null;
@@ -1125,9 +1230,11 @@ var cls=isAdmin?activeE(DB.classrooms):activeE(DB.classrooms).filter(function(c)
 var subs=isAdmin?activeE(DB.subjects):activeE(DB.subjects).filter(function(s){return getTeacherSubjects(ST.user.teacherId).includes(s.id);});
 var curAud=a?a.audience:[];
 var broadHtml=isAdmin?'<div class="chk-grid mb-2"><label><input type="checkbox" value="all" '+(curAud.includes('all')?'checked':'')+'> ทุกคน</label><label><input type="checkbox" value="role:teacher" '+(curAud.includes('role:teacher')?'checked':'')+'> ครูทั้งหมด</label><label><input type="checkbox" value="role:student" '+(curAud.includes('role:student')?'checked':'')+'> นักเรียนทั้งหมด</label></div>':'<p class="text-xs mb-2" style="color:var(--muted)">เลือกห้องเรียน/วิชาที่คุณสอน เพื่อระบุกลุ่มผู้รับประกาศ</p>';
-var body='<div class="p-4 sm:p-6 space-y-3"><div><label class="block text-xs font-semibold mb-1">หัวข้อประกาศ</label><input id="anTitle" class="fi" value="'+(a?a.title.replace(/"/g,'&quot;'):'')+'"><div id="anTitleErr"></div></div><div><label class="block text-xs font-semibold mb-1">รายละเอียด</label><textarea id="anBody" class="csv-area" style="min-height:90px">'+(a?a.body:'')+'</textarea><div id="anBodyErr"></div></div><div><label class="block text-xs font-semibold mb-1">ผู้รับประกาศ</label>'+broadHtml+(cls.length?'<div class="text-xs font-semibold mb-1 mt-2">เฉพาะห้องเรียน</div><div class="chk-grid mb-2">'+cls.map(function(c){return'<label><input type="checkbox" class="an-cls" value="classroom:'+c.id+'" '+(curAud.includes('classroom:'+c.id)?'checked':'')+'> '+clsName(c.id)+'</label>';}).join('')+'</div>':'')+(subs.length?'<div class="text-xs font-semibold mb-1">เฉพาะวิชา</div><div class="chk-grid">'+subs.map(function(s){return'<label><input type="checkbox" class="an-sub" value="subject:'+s.id+'" '+(curAud.includes('subject:'+s.id)?'checked':'')+'> '+subCode(s.id)+'</label>';}).join('')+'</div>':'')+'<div id="anAudErr"></div></div></div>';
+var startVal=a&&a.startAt?new Date(a.startAt).toISOString().slice(0,16):'';
+var endVal=a&&a.endAt?new Date(a.endAt).toISOString().slice(0,16):'';
+var body='<div class="p-4 sm:p-6 space-y-3"><div><label class="block text-xs font-semibold mb-1">หัวข้อประกาศ</label><input id="anTitle" class="fi" value="'+(a?a.title.replace(/"/g,'&quot;'):'')+'"><div id="anTitleErr"></div></div><div><label class="block text-xs font-semibold mb-1">รายละเอียด</label><textarea id="anBody" class="csv-area" style="min-height:90px">'+(a?a.body:'')+'</textarea><div id="anBodyErr"></div></div><div><label class="block text-xs font-semibold mb-1">ผู้รับประกาศ</label>'+broadHtml+(cls.length?'<div class="text-xs font-semibold mb-1 mt-2">เฉพาะห้องเรียน</div><div class="chk-grid mb-2">'+cls.map(function(c){return'<label><input type="checkbox" class="an-cls" value="classroom:'+c.id+'" '+(curAud.includes('classroom:'+c.id)?'checked':'')+'> '+clsName(c.id)+'</label>';}).join('')+'</div>':'')+(subs.length?'<div class="text-xs font-semibold mb-1">เฉพาะวิชา</div><div class="chk-grid">'+subs.map(function(s){return'<label><input type="checkbox" class="an-sub" value="subject:'+s.id+'" '+(curAud.includes('subject:'+s.id)?'checked':'')+'> '+subCode(s.id)+'</label>';}).join('')+'</div>':'')+'<div id="anAudErr"></div></div><div class="grid grid-cols-2 gap-3 pt-2 border-t" style="border-color:var(--border)"><div><label class="block text-xs font-semibold mb-1">เริ่มแสดงอัตโนมัติ (ไม่บังคับ)</label><input id="anStart" type="datetime-local" class="fi" value="'+startVal+'"></div><div><label class="block text-xs font-semibold mb-1">สิ้นสุดการแสดงอัตโนมัติ (ไม่บังคับ)</label><input id="anEnd" type="datetime-local" class="fi" value="'+endVal+'"></div></div><p class="text-xs" style="color:var(--muted)"><i class="fas fa-circle-info mr-1"></i>ถ้าเว้นว่างไว้ ประกาศจะแสดงทันทีและไม่มีวันหมดอายุ (ปิดได้ด้วยสวิตช์ในหน้าจัดการประกาศ)</p><div id="anDateErr"></div></div>';
 showModal(a?'แก้ไขประกาศ':'สร้างประกาศ',body,function(){
-var te=$('anTitle'),be=$('anBody');clearInvalid(te);clearInvalid(be);$('anTitleErr').innerHTML='';$('anBodyErr').innerHTML='';$('anAudErr').innerHTML='';
+var te=$('anTitle'),be=$('anBody');clearInvalid(te);clearInvalid(be);$('anTitleErr').innerHTML='';$('anBodyErr').innerHTML='';$('anAudErr').innerHTML='';$('anDateErr').innerHTML='';
 var title=te.value.trim(),bodyTxt=be.value.trim();
 var bad=false;
 if(!title){markInvalid(te);$('anTitleErr').innerHTML='<div class="field-err"><i class="fas fa-circle-exclamation"></i>กรอกหัวข้อประกาศ</div>';bad=true;}
@@ -1135,9 +1242,13 @@ if(!bodyTxt){markInvalid(be);$('anBodyErr').innerHTML='<div class="field-err"><i
 if(bad)return;
 var checked=[...document.querySelectorAll('#modalOv input[type="checkbox"]:checked')].map(function(c){return c.value;});
 if(!checked.length){$('anAudErr').innerHTML='<div class="field-err"><i class="fas fa-circle-exclamation"></i>เลือกผู้รับประกาศอย่างน้อย 1 กลุ่ม</div>';return;}
+var startRaw=$('anStart').value,endRaw=$('anEnd').value;
+if(startRaw&&endRaw&&new Date(startRaw).getTime()>=new Date(endRaw).getTime()){$('anDateErr').innerHTML='<div class="field-err"><i class="fas fa-circle-exclamation"></i>เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่ม</div>';return;}
+var startAt=startRaw?new Date(startRaw).toISOString():'';
+var endAt=endRaw?new Date(endRaw).toISOString():'';
 var rec;
-if(id){rec=DB.announcements.find(function(x){return x.id===id;});rec.title=title;rec.body=bodyTxt;rec.audience=checked;}
-else{rec={id:nxId(DB.announcements),authorId:ST.user.id,authorName:ST.user.name,title:title,body:bodyTxt,audience:checked,createdAt:new Date().toISOString(),active:true};DB.announcements.push(rec);}
+if(id){rec=DB.announcements.find(function(x){return x.id===id;});rec.title=title;rec.body=bodyTxt;rec.audience=checked;rec.startAt=startAt;rec.endAt=endAt;}
+else{rec={id:nxId(DB.announcements),authorId:ST.user.id,authorName:ST.user.name,title:title,body:bodyTxt,audience:checked,createdAt:new Date().toISOString(),active:true,startAt:startAt,endAt:endAt};DB.announcements.push(rec);}
 apiCall('upsert',{sheet:'announcements',data:rec});
 showToast(id?'แก้ไขประกาศสำเร็จ':'สร้างประกาศสำเร็จ');
 hideModal();navigate('announcements');
@@ -1166,18 +1277,21 @@ var sts=activeE(DB.students.filter(function(s){return s.classroomId===clsId;}));
 
 if(!dates.length){html+='<div class="text-center py-16 text-gray-400"><i class="fas fa-calendar-xmark text-3xl mb-2"></i><p>ยังไม่มีข้อมูลเช็คชื่อในเดือนนี้</p></div></div>';return html;}
 
-html+='<div class="bg-white rounded-xl shadow-sm overflow-x-auto"><table class="dt w-full"><thead><tr><th>เลข</th><th class="sticky left-0 bg-white">ชื่อ</th>'+dates.map(function(d){var p=d.split('|');return'<th class="text-center">'+p[0].slice(5)+'<br>คาบ'+p[1]+'</th>';}).join('')+'<th>ขาด</th><th>สาย</th><th>คะแนนสะสม</th></tr></thead><tbody>'
+var thr=(DB.settings&&DB.settings.attendanceThresholdPercent!=null)?DB.settings.attendanceThresholdPercent:80;
+html+='<div class="bg-white rounded-xl shadow-sm overflow-x-auto mb-3"><table class="dt w-full"><thead><tr><th>เลข</th><th class="sticky left-0 bg-white">ชื่อ</th>'+dates.map(function(d){var p=d.split('|');return'<th class="text-center">'+p[0].slice(5)+'<br>คาบ'+p[1]+'</th>';}).join('')+'<th>ขาด(เดือนนี้)</th><th>สาย(เดือนนี้)</th><th>คะแนนสะสม</th><th>% เข้าเรียน<br><span class="font-normal text-[9px]">(ทั้งภาคเรียน)</span></th><th>เหลือก่อน<br>"มส" (เกณฑ์ '+thr+'%)</th></tr></thead><tbody>'
 +sts.map(function(st){
 var absentCnt=0,lateCnt=0,ptsSum=0,cells='';
 dates.forEach(function(d){
 var p=d.split('|');var rec=recs.find(function(r){return r.date===p[0]&&String(r.period)===p[1];});
 var rr=rec?rec.records.find(function(x){return x.studentId===st.id;}):null;
-if(rr){if(rr.status==='absent')absentCnt++;if(rr.status==='late')lateCnt++;ptsSum+=rr.points;cells+='<td class="text-center"><span class="cat-badge" style="'+attBadgeStyle(rr.status)+'">'+attLabel(rr.status)+'</span></td>';}
+if(rr){if(attStatus(rr.status).countsAsAbsent)absentCnt++;if(rr.status==='late')lateCnt++;ptsSum+=rr.points;cells+='<td class="text-center"><span class="cat-badge" style="'+attBadgeStyle(rr.status)+'">'+attLabel(rr.status)+'</span></td>';}
 else cells+='<td class="text-center text-gray-300">-</td>';
 });
-return'<tr><td>'+st.number+'</td><td class="font-semibold whitespace-nowrap sticky left-0 bg-white">'+st.name+'</td>'+cells+'<td class="text-center font-bold '+(absentCnt>0?'text-red-600':'')+'">'+absentCnt+'</td><td class="text-center font-bold '+(lateCnt>0?'text-orange-600':'')+'">'+lateCnt+'</td><td class="text-center font-bold '+(ptsSum<0?'text-red-600':'text-gray-500')+'">'+ptsSum+'</td></tr>';
+var sum=getAttendanceSummary(st.id,subId,clsId);
+var remText=sum.total===0?'<span class="text-gray-400">-</span>':(sum.isFail?'<span class="text-red-600 font-bold">เกินแล้ว!</span>':(sum.remaining<=1?'<span class="text-red-600 font-bold">เหลือ '+Math.max(0,sum.remaining)+' ครั้ง</span>':(sum.remaining<=2?'<span class="text-orange-600 font-bold">เหลือ '+sum.remaining+' ครั้ง</span>':'<span class="text-green-600 font-bold">เหลือ '+sum.remaining+' ครั้ง</span>')));
+return'<tr><td>'+st.number+'</td><td class="font-semibold whitespace-nowrap sticky left-0 bg-white">'+st.name+'</td>'+cells+'<td class="text-center font-bold '+(absentCnt>0?'text-red-600':'')+'">'+absentCnt+'</td><td class="text-center font-bold '+(lateCnt>0?'text-orange-600':'')+'">'+lateCnt+'</td><td class="text-center font-bold '+(ptsSum<0?'text-red-600':'text-gray-500')+'">'+ptsSum+'</td><td class="text-center font-bold '+(sum.isFail?'text-red-600':sum.percent<thr+5?'text-orange-600':'text-green-600')+'">'+sum.percent+'%</td><td class="text-center">'+remText+'</td></tr>';
 }).join('')
-+'</tbody></table></div></div>';
++'</tbody></table></div><p class="text-xs no-print" style="color:var(--muted)"><i class="fas fa-circle-info mr-1"></i>% เข้าเรียนและจำนวนครั้งที่เหลือคำนวณจากคาบที่เช็คชื่อมาแล้วทั้งหมดในภาคเรียนนี้ (ไม่ใช่แค่เดือนที่กำลังดู) และจะเปลี่ยนแปลงเมื่อมีการเช็คชื่อเพิ่ม</p></div>';
 return html;
 }
 
@@ -1464,6 +1578,20 @@ html+='<div class="grid grid-cols-2 sm:grid-cols-'+Math.min(5,statuses.length+1)
 +statCard('fa-star','คะแนนพฤติกรรมสะสม',totalPts,'คะแนน',totalPts<0?'bg-red-100 text-red-600':'bg-teal-100 text-teal-600')
 +'</div>';
 
+/* สรุปเปอร์เซ็นต์เข้าเรียนแยกรายวิชา พร้อมเตือนความเสี่ยง มส */
+var mySubIds=[...new Set(curAssignments().filter(function(a){return a.classroomIds.includes(st.classroomId);}).map(function(a){return a.subjectId;}))];
+if(mySubIds.length){
+html+='<div class="bg-white rounded-xl shadow-sm p-4 sm:p-5 mb-4"><h3 class="font-display font-bold mb-3"><i class="fas fa-chart-simple text-teal-500 mr-1"></i> สรุปการเข้าเรียนแยกรายวิชา</h3><div class="grid grid-cols-1 sm:grid-cols-2 gap-3">'
++mySubIds.map(function(subId){
+var sum=getAttendanceSummary(st.id,subId,st.classroomId);
+if(sum.total===0)return'<div class="border rounded-xl p-3" style="border-color:var(--border)"><div class="font-semibold text-sm mb-1">'+subCode(subId)+' '+subName(subId)+'</div><div class="text-xs text-gray-400">ยังไม่มีการเช็คชื่อ</div></div>';
+var barColor=sum.isFail?'#DC2626':sum.remaining<=1?'#DC2626':sum.remaining<=2?'#D97706':'#059669';
+var warnHtml=sum.isFail?'<div class="text-xs font-bold text-red-600 mt-1"><i class="fas fa-triangle-exclamation mr-1"></i>ต่ำกว่าเกณฑ์แล้ว (เสี่ยง "มส")</div>':(sum.remaining<=1?'<div class="text-xs font-bold text-red-600 mt-1"><i class="fas fa-triangle-exclamation mr-1"></i>ขาดได้อีกเพียง '+Math.max(0,sum.remaining)+' ครั้งจะ "มส"</div>':'<div class="text-xs mt-1" style="color:var(--muted)">ขาดได้อีก '+sum.remaining+' ครั้งก่อนถึงเกณฑ์ "มส"</div>');
+return'<div class="border rounded-xl p-3" style="border-color:var(--border)"><div class="flex justify-between items-start mb-2"><div class="font-semibold text-sm">'+subCode(subId)+' '+subName(subId)+'</div><div class="font-display font-bold text-lg" style="color:'+barColor+'">'+sum.percent+'%</div></div><div class="rank-bar mb-1"><div class="rank-bar-fill" style="width:'+sum.percent+'%;background:'+barColor+'"></div></div><div class="text-[11px]" style="color:var(--muted)">เช็คชื่อแล้ว '+sum.total+' คาบ | ขาด '+sum.absentCount+' คาบ | เกณฑ์ขั้นต่ำ '+sum.threshold+'%</div>'+warnHtml+'</div>';
+}).join('')
++'</div></div>';
+}
+
 html+='<div class="bg-white rounded-xl shadow-sm overflow-x-auto"><div class="px-3 py-2 font-display font-bold text-sm border-b" style="border-color:var(--border)"><i class="fas fa-calendar-check text-teal-500 mr-1"></i> ประวัติการเข้าเรียนทั้งหมด ('+recs.length+' รายการ)</div><table class="dt w-full min-w-[500px]"><thead><tr><th>วันที่</th><th>คาบ</th><th>วิชา</th><th>สถานะ</th><th>คะแนนพฤติกรรม</th></tr></thead><tbody>'
 +(recs.length?recs.map(function(r){return'<tr><td>'+r.date+'</td><td class="text-center">'+r.period+'</td><td>'+subCode(r.subjectId)+' '+subName(r.subjectId)+'</td><td><span class="cat-badge" style="'+attBadgeStyle(r.status)+'">'+attLabel(r.status)+'</span></td><td class="text-center font-bold '+(r.points<0?'text-red-600':'text-gray-400')+'">'+(r.points>0?'+':'')+r.points+'</td></tr>';}).join(''):'<tr><td colspan="5" class="text-center text-gray-400 py-6">ยังไม่มีข้อมูลการเช็คชื่อ</td></tr>')
 +'</tbody></table></div></div>';
@@ -1565,4 +1693,4 @@ addPrintStyles();
 bootApp();
 </script>
 </body>
-</html> 
+</html>
