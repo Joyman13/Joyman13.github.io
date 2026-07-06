@@ -607,9 +607,27 @@ function renderTopBar(){
 if(clockTimer)clearInterval(clockTimer);
 var notifs=getNotifications();
 var badge=notifs.length?'<span class="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">'+(notifs.length>9?'9+':notifs.length)+'</span>':'';
- $('topBar').innerHTML='<div class="flex items-center gap-2 sm:gap-3 min-w-0"><button onclick="openSB()" class="lg:hidden text-gray-500 text-lg flex-shrink-0"><i class="fas fa-bars"></i></button><h1 class="font-display text-base sm:text-xl font-bold truncate">'+(pageTitles[ST.page]||'')+'</h1></div><div class="flex items-center gap-2 sm:gap-4 flex-shrink-0"><button onclick="openNotifModal()" class="relative text-gray-500 hover:text-teal-600 text-lg"><i class="far fa-bell"></i>'+badge+'</button><span id="liveClock" class="clock-display"></span><span class="text-xs sm:text-sm hidden sm:inline" style="color:var(--muted)"><i class="far fa-calendar-alt mr-1"></i>'+new Date().toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'})+'</span></div>';
+ $('topBar').innerHTML='<div class="flex items-center gap-2 sm:gap-3 min-w-0"><button onclick="openSB()" class="lg:hidden text-gray-500 text-lg flex-shrink-0"><i class="fas fa-bars"></i></button><h1 class="font-display text-base sm:text-xl font-bold truncate">'+(pageTitles[ST.page]||'')+'</h1></div><div class="flex items-center gap-2 sm:gap-4 flex-shrink-0"><button id="refreshBtn" onclick="refreshFromServer()" class="text-gray-500 hover:text-teal-600 text-lg" title="ดึงข้อมูลล่าสุดจากฐานข้อมูล"><i class="fas fa-rotate"></i></button><button onclick="openNotifModal()" class="relative text-gray-500 hover:text-teal-600 text-lg"><i class="far fa-bell"></i>'+badge+'</button><span id="liveClock" class="clock-display"></span><span class="text-xs sm:text-sm hidden sm:inline" style="color:var(--muted)"><i class="far fa-calendar-alt mr-1"></i>'+new Date().toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'})+'</span></div>';
 function tick(){var el=$('liveClock');if(el)el.textContent=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
 tick();clockTimer=setInterval(tick,1000);
+}
+/** ดึงข้อมูลล่าสุดจากฐานข้อมูลจริงมาแทนที่ข้อมูลในเครื่อง แล้ววาดหน้าปัจจุบันใหม่ */
+async function refreshFromServer(){
+if(!LIVE_MODE){showToast('อยู่ในโหมดทดลอง (DEMO) ไม่มีฐานข้อมูลจริงให้ดึงข้อมูล','info');return;}
+var btn=$('refreshBtn');
+if(btn)btn.querySelector('i').classList.add('spin');
+try{
+var fresh=await apiLoadAll();
+if(!fresh||!fresh.users){showToast('ดึงข้อมูลไม่สำเร็จ','error');return;}
+DB=fresh;
+normalizeDB();
+showToast('ปรับปรุงข้อมูลให้ตรงกับฐานข้อมูลล่าสุดแล้ว');
+navigate(ST.page);
+}catch(e){
+showToast('ดึงข้อมูลไม่สำเร็จ: '+String(e.message||e),'error');
+}finally{
+if(btn)btn.querySelector('i').classList.remove('spin');
+}
 }
 
 /* ======================================================================
@@ -836,16 +854,19 @@ function openClassroomModal(id){var c=id?DB.classrooms.find(function(x){return x
 
 /* =================== SCORES (ครูบันทึกคะแนน) =================== */
 function renderScores(){
-var tcId=ST.user.teacherId;var subs=getTeacherSubjects(tcId);var clsList=getAllTcCls(tcId);
-var fCls=ST.filter.scoreCls||'';var fSub=ST.filter.scoreSub||'';
-var filteredCls=fCls?clsList.filter(function(c){return c===+fCls;}):clsList;
+var tcId=ST.user.teacherId;var subs=getTeacherSubjects(tcId);
 if(!subs.length)return'<div class="pg-in">'+emptyState('fa-clipboard-list','ยังไม่มีวิชาที่จัดสอน กรุณาติดต่อแอดมินให้จัดสอนวิชาให้คุณก่อน')+'</div>';
+var fSub=ST.filter.scoreSub||'';
 var selSub=fSub?+fSub:subs[0];
+/* กรองห้องเรียนเฉพาะห้องที่มีการจัดสอนวิชานี้ให้ครูคนนี้เท่านั้น */
+var clsList=[...new Set(curAssignments().filter(function(a){return a.teacherId===tcId&&a.subjectId===selSub;}).flatMap(function(a){return a.classroomIds;}))];
+var fCls=ST.filter.scoreCls||'';
+var filteredCls=fCls&&clsList.includes(+fCls)?clsList.filter(function(c){return c===+fCls;}):clsList;
 var cats=getCategories(tcId,selSub);
 /* เก็บภาพคะแนนตอนเปิดหน้า ไว้ใช้กับปุ่ม "ยกเลิกการเปลี่ยนแปลง" */
 ST.scoreSnapshot={};
 DB.scores.filter(function(s){return s.teacherId===tcId&&s.subjectId===selSub&&(s.termId==null||curTermId()==null||s.termId===curTermId());}).forEach(function(s){ST.scoreSnapshot[s.id]=JSON.parse(JSON.stringify(s.scores));});
-var html='<div class="pg-in no-print"><div class="filter-bar"><label>ห้อง:</label><select onchange="ST.filter.scoreCls=this.value;navigate(\'scores\')"><option value="">ทุกห้อง</option>'+clsList.map(function(c){return'<option value="'+c+'" '+(fCls==c?'selected':'')+'>'+clsName(c)+'</option>';}).join('')+'</select><label>วิชา:</label><select onchange="ST.filter.scoreSub=this.value;navigate(\'scores\')">'+subs.map(function(s){return'<option value="'+s+'" '+(selSub===s?'selected':'')+'>'+subCode(s)+' — '+subName(s)+'</option>';}).join('')+'</select><button class="btn btn-o btn-sm" onclick="resetScoresPage()"><i class="fas fa-rotate-left"></i> ยกเลิกการเปลี่ยนแปลง</button><button class="btn btn-p btn-sm ml-auto" onclick="saveAllScores()"><i class="fas fa-save"></i> บันทึกทั้งหมด</button></div></div>';
+var html='<div class="pg-in no-print"><div class="filter-bar"><label>วิชา:</label><select onchange="ST.filter.scoreSub=this.value;ST.filter.scoreCls=\'\';navigate(\'scores\')">'+subs.map(function(s){return'<option value="'+s+'" '+(selSub===s?'selected':'')+'>'+subCode(s)+' — '+subName(s)+'</option>';}).join('')+'</select><label>ห้อง:</label><select onchange="ST.filter.scoreCls=this.value;navigate(\'scores\')"><option value="">ทุกห้อง (เฉพาะวิชานี้)</option>'+clsList.map(function(c){return'<option value="'+c+'" '+(fCls==c?'selected':'')+'>'+clsName(c)+'</option>';}).join('')+'</select><button class="btn btn-o btn-sm" onclick="resetScoresPage()"><i class="fas fa-rotate-left"></i> ยกเลิกการเปลี่ยนแปลง</button><button class="btn btn-p btn-sm ml-auto" onclick="saveAllScores()"><i class="fas fa-save"></i> บันทึกทั้งหมด</button></div></div>';
 if(!cats.length){html+='<div class="pg-in">'+emptyState('fa-list-check','ยังไม่มีหัวข้อคะแนนสำหรับวิชานี้ กรุณาไปที่เมนู "หัวข้อคะแนน" เพื่อเพิ่มก่อน')+'</div>';return html;}
 if(!filteredCls.length){html+='<div class="pg-in">'+emptyState('fa-school','ยังไม่มีห้องเรียนที่จัดสอนวิชานี้')+'</div>';return html;}
 filteredCls.forEach(function(clsId){
@@ -959,9 +980,45 @@ function onAttDateChange(){checkClosureWarning();loadAttData();}
 function initAttPage(){$('attDate').value=new Date().toISOString().split('T')[0];checkClosureWarning();}
 function onAttSubChange(){var subId=+$('attSub').value;var tcId=ST.user.teacherId;var asgn=curAssignments().find(function(a){return a.teacherId===tcId&&a.subjectId===subId;});var sel=$('attCls');sel.innerHTML='<option value="">-- เลือก --</option>'+(asgn?asgn.classroomIds.map(function(c){return'<option value="'+c+'">'+clsName(c)+'</option>';}).join(''):'');$('attBody').innerHTML='<div class="empty-state"><i class="fas fa-school"></i><p>เลือกห้องเรียน</p></div>';}
 function onAttClsChange(){loadAttData();}
-function loadAttData(){var subId=+$('attSub').value,clsId=+$('attCls').value,date=$('attDate').value,period=+$('attPeriod').value;if(!subId||!clsId||!date)return;var tcId=ST.user.teacherId;var sts=activeE(DB.students.filter(function(s){return s.classroomId===clsId;}));var existing=DB.attendance.find(function(a){return a.teacherId===tcId&&a.subjectId===subId&&a.classroomId===clsId&&a.date===date&&a.period===period&&(a.termId==null||curTermId()==null||a.termId===curTermId());});var statuses=getAttStatuses();var defStatus=statuses[0]?statuses[0].key:'present';var html='<div class="bg-white rounded-xl shadow-sm overflow-x-auto"><div class="px-3 py-2 font-display font-bold text-sm border-b" style="border-color:var(--border)"><i class="fas fa-calendar-check text-teal-500 mr-1"></i> '+clsName(clsId)+' — '+subCode(subId)+' '+subName(subId)+' | '+date+' คาบ '+period+'</div><div class="p-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">';sts.forEach(function(st){var cur=defStatus;if(existing){var rec=existing.records.find(function(r){return r.studentId===st.id;});if(rec)cur=rec.status;}html+='<div class="border rounded-xl p-3" style="border-color:var(--border)"><div class="font-semibold text-sm mb-2">'+st.number+'. '+st.name+'</div><div class="flex flex-wrap gap-1">';statuses.forEach(function(s){html+='<button class="att-btn '+(cur===s.key?'active':'')+'" style="'+attBadgeStyle(s.key)+'" data-sid="'+st.id+'" data-st="'+s.key+'" onclick="toggleAttBtn(this)">'+s.label+'</button>';});html+='</div></div>';});html+='</div></div>';$('attBody').innerHTML=html;}
+function loadAttData(){var subId=+$('attSub').value,clsId=+$('attCls').value,date=$('attDate').value,period=+$('attPeriod').value;if(!subId||!clsId||!date)return;var tcId=ST.user.teacherId;var sts=activeE(DB.students.filter(function(s){return s.classroomId===clsId;}));var existing=DB.attendance.find(function(a){return a.teacherId===tcId&&a.subjectId===subId&&a.classroomId===clsId&&a.date===date&&a.period===period&&(a.termId==null||curTermId()==null||a.termId===curTermId());});var statuses=getAttStatuses();var defStatus=statuses[0]?statuses[0].key:'present';
+var html='<div class="bg-white rounded-xl shadow-sm overflow-x-auto"><div class="px-3 py-2 font-display font-bold text-sm border-b" style="border-color:var(--border)"><i class="fas fa-calendar-check text-teal-500 mr-1"></i> '+clsName(clsId)+' — '+subCode(subId)+' '+subName(subId)+' | '+date+' คาบ '+period+'</div>';
+if(!sts.length){html+=emptyState('fa-user-slash','ยังไม่มีนักเรียนในห้องนี้');}
+else{
+html+='<table class="dt w-full"><thead><tr><th style="width:50px">เลข</th><th>ชื่อ-นามสกุล</th><th>สถานะ</th></tr></thead><tbody>'+sts.map(function(st){
+var cur=defStatus;
+if(existing){var rec=existing.records.find(function(r){return r.studentId===st.id;});if(rec)cur=rec.status;}
+return'<tr data-sid="'+st.id+'"><td class="text-center">'+st.number+'</td><td class="font-semibold whitespace-nowrap">'+st.name+'</td><td><div class="flex flex-wrap gap-1">'+statuses.map(function(s){return'<button class="att-btn '+(cur===s.key?'active':'')+'" style="'+attBadgeStyle(s.key)+'" data-sid="'+st.id+'" data-st="'+s.key+'" onclick="toggleAttBtn(this)">'+s.label+'</button>';}).join('')+'</div></td></tr>';
+}).join('')+'</tbody></table>';
+}
+html+='</div>';
+$('attBody').innerHTML=html;}
+function toggleAttBtn(el){var row=el.closest('tr');row.querySelectorAll('.att-btn').forEach(function(b){b.classList.remove('active');});el.classList.add('active');}
 function toggleAttBtn(el){var card=el.closest('.border');card.querySelectorAll('.att-btn').forEach(function(b){b.classList.remove('active');});el.classList.add('active');}
-function saveAttData(){var subId=+$('attSub').value,clsId=+$('attCls').value,date=$('attDate').value,period=+$('attPeriod').value,tcId=ST.user.teacherId;if(!subId||!clsId||!date){showToast('เลือกข้อมูลให้ครบ','error');return;}var cards=document.querySelectorAll('#attBody .border');var records=[];cards.forEach(function(card){var sid=+card.querySelector('[data-sid]').dataset.sid;var btn=card.querySelector('.att-btn.active');var status=btn?btn.dataset.st:(getAttStatuses()[0]?getAttStatuses()[0].key:'present');records.push({studentId:sid,status:status,points:attPointsOf(status)});});var tId=curTermId();var idx=DB.attendance.findIndex(function(a){return a.teacherId===tcId&&a.subjectId===subId&&a.classroomId===clsId&&a.date===date&&a.period===period&&(a.termId==null||tId==null||a.termId===tId);});var rec;if(idx>=0){DB.attendance[idx].records=records;rec=DB.attendance[idx];}else{rec={id:nxId(DB.attendance),teacherId:tcId,subjectId:subId,classroomId:clsId,date:date,period:period,records:records,termId:tId};DB.attendance.push(rec);}apiCall('saveAttendance',{teacherId:tcId,subjectId:subId,classroomId:clsId,date:date,period:period,records:records,termId:tId});showToast('บันทึกเช็คชื่อสำเร็จ');}
+function saveAttData(){var subId=+$('attSub').value,clsId=+$('attCls').value,date=$('attDate').value,period=+$('attPeriod').value,tcId=ST.user.teacherId;if(!subId||!clsId||!date){showToast('เลือกข้อมูลให้ครบ','error');return;}var rows=document.querySelectorAll('#attBody tr[data-sid]');var records=[];rows.forEach(function(row){var sid=+row.dataset.sid;var btn=row.querySelector('.att-btn.active');var status=btn?btn.dataset.st:(getAttStatuses()[0]?getAttStatuses()[0].key:'present');records.push({studentId:sid,status:status,points:attPointsOf(status)});});var tId=curTermId();var idx=DB.attendance.findIndex(function(a){return a.teacherId===tcId&&a.subjectId===subId&&a.classroomId===clsId&&a.date===date&&a.period===period&&(a.termId==null||tId==null||a.termId===tId);});var rec;if(idx>=0){DB.attendance[idx].records=records;rec=DB.attendance[idx];}else{rec={id:nxId(DB.attendance),teacherId:tcId,subjectId:subId,classroomId:clsId,date:date,period:period,records:records,termId:tId};DB.attendance.push(rec);}apiCall('saveAttendance',{teacherId:tcId,subjectId:subId,classroomId:clsId,date:date,period:period,records:records,termId:tId});recalcBehaviorScores(tcId,subId,clsId);showToast('บันทึกเช็คชื่อสำเร็จ');}
+/** คำนวณคะแนนหัวข้อ "พฤติกรรม" (isBehavior) ใหม่ทั้งหมด จากคะแนนสะสมในการเช็คชื่อทุกครั้งของวิชา/ห้องนี้
+ * เรียกทุกครั้งหลังบันทึกเช็คชื่อ เพื่อให้คะแนนพฤติกรรมในหน้าบันทึกคะแนนอัปเดตตามจริงเสมอ */
+function recalcBehaviorScores(tcId,subId,clsId){
+var behCat=DB.scoreCategories.find(function(c){return c.teacherId===tcId&&c.subjectId===subId&&c.isBehavior;});
+if(!behCat)return;
+var tId=curTermId();
+var sts=activeE(DB.students.filter(function(s){return s.classroomId===clsId;}));
+sts.forEach(function(st){
+var pts=0;
+DB.attendance.filter(function(a){return a.teacherId===tcId&&a.subjectId===subId&&a.classroomId===clsId&&(a.termId==null||tId==null||a.termId===tId);}).forEach(function(a){
+var r=a.records.find(function(x){return x.studentId===st.id;});
+if(r)pts+=r.points;
+});
+var sc=DB.scores.find(function(s){return s.studentId===st.id&&s.subjectId===subId&&s.classroomId===clsId&&(s.termId==null||tId==null||s.termId===tId);});
+if(!sc){sc={id:nxId(DB.scores),studentId:st.id,subjectId:subId,teacherId:tcId,classroomId:clsId,scores:{},total:0,termId:tId};DB.scores.push(sc);}
+if(sc.scores[behCat.id]!==pts){
+sc.scores[behCat.id]=pts;
+sc.total=calcTotal0(sc.teacherId,sc.subjectId,sc.scores);
+apiCall('saveScore',{studentId:sc.studentId,subjectId:sc.subjectId,teacherId:sc.teacherId,classroomId:sc.classroomId,scores:sc.scores,total:sc.total,termId:sc.termId});
+}
+});
+/* ถ้าหน้าบันทึกคะแนนกำลังเปิดอยู่พอดี ให้รีเฟรชตัวเลขในตารางให้เห็นผลทันที */
+if(ST.page==='scores')navigate('scores');
+}
 
 /* =================== ประวัติการแก้ไขคะแนน (Audit Log) — Admin =================== */
 function renderAuditLog(){
@@ -1046,7 +1103,7 @@ saveSettingsToServer();
 showToast('บันทึกเกณฑ์การเข้าเรียนสำเร็จ');
 navigate('systemSettings');
 }
-function openAttStatusModal(id){var s=id?DB.attendanceStatuses.find(function(x){return x.id===id;}):null;showModal(s?'แก้ไขสถานะ':'เพิ่มสถานะการเข้าเรียน','<div class="p-4 sm:p-6 space-y-3"><div><label class="block text-xs font-semibold mb-1">ชื่อสถานะ</label><input id="mAsN" class="fi" value="'+(s?s.label:'')+'"><div id="mAsNErr"></div></div><div><label class="block text-xs font-semibold mb-1">คีย์ (ภาษาอังกฤษ ไม่มีเว้นวรรค เช่น sick-leave)</label><input id="mAsK" class="fi" value="'+(s?s.key:'')+'" '+(s?'readonly style="background:#F3F4F6"':'')+'><div id="mAsKErr"></div></div><div class="grid grid-cols-2 gap-3"><div><label class="block text-xs font-semibold mb-1">คะแนน (ติดลบ=หัก, บวก=เพิ่ม)</label><input id="mAsP" type="number" class="fi" value="'+(s?s.points:'0')+'"></div><div><label class="block text-xs font-semibold mb-1">สีป้าย</label><input id="mAsC" type="color" class="fi" style="height:38px;padding:2px" value="'+(s?s.color:'#0E7C6B')+'"></div></div><div><label class="flex items-center gap-2 text-sm"><input type="checkbox" id="mAsAbsent" '+(s&&s.countsAsAbsent?'checked':'')+'> นับสถานะนี้เป็น "ขาดเรียน" สำหรับคำนวณเปอร์เซ็นต์เข้าเรียน/มส</label></div></div>',function(){var ne=$('mAsN'),ke=$('mAsK');clearInvalid(ne);clearInvalid(ke);$('mAsNErr').innerHTML='';$('mAsKErr').innerHTML='';var n=ne.value.trim(),k=ke.value.trim().toLowerCase().replace(/\s+/g,'-'),p=+$('mAsP').value||0,c=$('mAsC').value,ca=$('mAsAbsent').checked;if(!n){markInvalid(ne);$('mAsNErr').innerHTML='<div class="field-err"><i class="fas fa-circle-exclamation"></i>กรอกชื่อสถานะ</div>';return;}if(!k){markInvalid(ke);$('mAsKErr').innerHTML='<div class="field-err"><i class="fas fa-circle-exclamation"></i>กรอกคีย์สถานะ</div>';return;}if(!id&&DB.attendanceStatuses.some(function(x){return x.key===k;})){markInvalid(ke);$('mAsKErr').innerHTML='<div class="field-err"><i class="fas fa-circle-exclamation"></i>คีย์นี้ถูกใช้แล้ว</div>';return;}var rec;if(id){rec=DB.attendanceStatuses.find(function(x){return x.id===id;});rec.label=n;rec.points=p;rec.color=c;rec.countsAsAbsent=ca;}else{rec={id:nxId(DB.attendanceStatuses),key:k,label:n,points:p,color:c,active:true,countsAsAbsent:ca};DB.attendanceStatuses.push(rec);}apiCall('upsert',{sheet:'attendanceStatuses',data:rec});showToast(id?'แก้ไขสำเร็จ':'เพิ่มสำเร็จ');hideModal();navigate('systemSettings');});}
+function openAttStatusModal(id){var s=id?DB.attendanceStatuses.find(function(x){return x.id===id;}):null;showModal(s?'แก้ไขสถานะ':'เพิ่มสถานะการเข้าเรียน','<div class="p-4 sm:p-6 space-y-3"><div><label class="block text-xs font-semibold mb-1">ชื่อสถานะ</label><input id="mAsN" class="fi" value="'+(s?s.label:'')+'"><div id="mAsNErr"></div></div><div><label class="block text-xs font-semibold mb-1">คีย์ (ภาษาอังกฤษ ไม่มีเว้นวรรค เช่น sick-leave)</label><input id="mAsK" class="fi" value="'+(s?s.key:'')+'" '+(s?'readonly style="background:#F3F4F6"':'')+'><div id="mAsKErr"></div></div><div class="grid grid-cols-2 gap-3"><div><label class="block text-xs font-semibold mb-1">คะแนน (ติดลบ=หัก, บวก=เพิ่ม)</label><input id="mAsP" type="number" class="fi" value="'+(s?s.points:'0')+'"></div><div><label class="block text-xs font-semibold mb-1">สีป้าย</label><input id="mAsC" type="color" class="fi" style="height:38px;padding:2px" value="'+(s?s.color:'#0E7C6B')+'"></div></div><div><label class="flex items-center gap-2 text-sm"><input type="checkbox" id="mAsAbsent" '+(s&&s.countsAsAbsent?'checked':'')+'> นับสถานะนี้เป็น "ขาดเรียน" สำหรับคำนวณเปอร์เซ็นต์เข้าเรียน/มส</label></div></div>',function(){var ne=$('mAsN'),ke=$('mAsK');clearInvalid(ne);clearInvalid(ke);$('mAsNErr').innerHTML='';$('mAsKErr').innerHTML='';var n=ne.value.trim(),k=ke.value.trim().toLowerCase().replace(/\s+/g,'-').replace(/[:|,]/g,'-'),p=+$('mAsP').value||0,c=$('mAsC').value,ca=$('mAsAbsent').checked;if(!n){markInvalid(ne);$('mAsNErr').innerHTML='<div class="field-err"><i class="fas fa-circle-exclamation"></i>กรอกชื่อสถานะ</div>';return;}if(!k){markInvalid(ke);$('mAsKErr').innerHTML='<div class="field-err"><i class="fas fa-circle-exclamation"></i>กรอกคีย์สถานะ</div>';return;}if(!id&&DB.attendanceStatuses.some(function(x){return x.key===k;})){markInvalid(ke);$('mAsKErr').innerHTML='<div class="field-err"><i class="fas fa-circle-exclamation"></i>คีย์นี้ถูกใช้แล้ว</div>';return;}var rec;if(id){rec=DB.attendanceStatuses.find(function(x){return x.id===id;});rec.label=n;rec.points=p;rec.color=c;rec.countsAsAbsent=ca;}else{rec={id:nxId(DB.attendanceStatuses),key:k,label:n,points:p,color:c,active:true,countsAsAbsent:ca};DB.attendanceStatuses.push(rec);}apiCall('upsert',{sheet:'attendanceStatuses',data:rec});showToast(id?'แก้ไขสำเร็จ':'เพิ่มสำเร็จ');hideModal();navigate('systemSettings');});}
 
 /* ---- สำรอง/กู้คืนข้อมูล ---- */
 function renderSettingsBackup(){
