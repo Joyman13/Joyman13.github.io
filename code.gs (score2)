@@ -1,0 +1,523 @@
+/**
+ * ============================================================
+ *  EduScore Backend — Google Apps Script + Google Sheets
+ * ============================================================
+ * วิธีติดตั้ง:
+ * 1) สร้าง Google Sheet ใหม่ (ว่างเปล่าก็ได้) เช่น "EduScore Database"
+ * 2) เปิด Extensions > Apps Script แล้ววางโค้ดทั้งหมดนี้ทับของเดิม
+ * 3) รันฟังก์ชัน setupSheets() หนึ่งครั้ง (เมนู Run > setupSheets)
+ *    เพื่อสร้างชีตทั้งหมดพร้อมหัวตาราง (อนุญาต permission ตามที่ขอ)
+ * 4) (ทางเลือก) รัน seedDemoData() หนึ่งครั้ง ถ้าต้องการข้อมูลตัวอย่าง
+ *    เหมือนในเว็บ (ครู/นักเรียน/วิชา ชุดทดสอบ) — ถ้าไม่ต้องการข้อมูลตัวอย่าง
+ *    ให้ข้ามขั้นตอนนี้ แล้วเพิ่มข้อมูลจริงผ่านหน้าเว็บ (เมนูจัดการต่างๆ) แทน
+ * 5) Deploy > New deployment > เลือกประเภท "Web app"
+ *      - Execute as: Me
+ *      - Who has access: Anyone
+ *    กด Deploy แล้วคัดลอก "Web app URL"
+ * 6) นำ URL ไปใส่ในไฟล์ HTML ที่ CONFIG.API_URL
+ * ============================================================
+ */
+
+var SHEETS = {
+  subjectGroups:   { name: 'SubjectGroups',   cols: ['id','name','active'] },
+  users:           { name: 'Users',           cols: ['id','username','password','role','name','teacherId','studentId','email','phone','avatar','themeColor'] },
+  subjects:        { name: 'Subjects',        cols: ['id','name','code','active','credits','groupId','levels'] },
+  classrooms:      { name: 'Classrooms',      cols: ['id','level','room','active'] },
+  teachers:        { name: 'Teachers',        cols: ['id','code','name','active','groupId'] },
+  assignments:     { name: 'Assignments',     cols: ['id','teacherId','subjectId','classroomIds','gradeVisible','termId'] },
+  scoreCategories: { name: 'ScoreCategories', cols: ['id','teacherId','subjectId','name','group','maxScore','isBehavior','weight'] },
+  scores:          { name: 'Scores',          cols: ['id','studentId','subjectId','teacherId','classroomId','scoresJson','total','termId'] },
+  students:        { name: 'Students',        cols: ['id','studentId','name','classroomId','number','active'] },
+  attendance:      { name: 'Attendance',      cols: ['id','teacherId','subjectId','classroomId','date','period','recordsJson','termId'] },
+  auditLog:        { name: 'AuditLog',        cols: ['id','ts','userId','userName','action','sheet','recordId','field','oldValue','newValue','note'] },
+  terms:           { name: 'Terms',           cols: ['id','year','semester','label','active'] },
+  attendanceStatuses: { name: 'AttendanceStatuses', cols: ['id','key','label','points','color','active','countsAsAbsent'] },
+  settings:        { name: 'Settings',        cols: ['key','value'] },
+  announcements:   { name: 'Announcements',    cols: ['id','authorId','authorName','title','body','audience','createdAt','active','startAt','endAt'] },
+  timetable:       { name: 'Timetable',        cols: ['id','teacherId','subjectId','classroomId','dayOfWeek','period','termId'] },
+  schoolClosures:  { name: 'SchoolClosures',   cols: ['id','startDate','endDate','label','termId'] }
+};
+
+function getSS_() { return SpreadsheetApp.getActiveSpreadsheet(); }
+
+function getSheet_(key) {
+  var def = SHEETS[key];
+  var ss = getSS_();
+  var sh = ss.getSheetByName(def.name);
+  if (!sh) {
+    sh = ss.insertSheet(def.name);
+    sh.appendRow(def.cols);
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+/** รันครั้งเดียวตอนติดตั้งระบบ เพื่อสร้างชีตทั้งหมด */
+function setupSheets() {
+  Object.keys(SHEETS).forEach(function (k) { getSheet_(k); });
+  SpreadsheetApp.getActiveSpreadsheet().toast('สร้างชีตทั้งหมดเรียบร้อย');
+}
+
+function sheetToObjects_(key) {
+  var sh = getSheet_(key);
+  var data = sh.getDataRange().getValues();
+  if (data.length < 2) return [];
+  var headers = data[0];
+  return data.slice(1)
+    .filter(function (r) { return r[0] !== '' && r[0] !== null && r[0] !== undefined; })
+    .map(function (r) {
+      var o = {};
+      headers.forEach(function (h, i) { o[h] = r[i]; });
+      return o;
+    });
+}
+
+function toBool_(v) { return v === true || v === 'TRUE' || v === 'true' || v === 1 || v === '1'; }
+
+/** แปลงข้อมูลดิบจากชีต (ทุกอย่างเป็น string/number) กลับเป็นโครงสร้างที่หน้าเว็บใช้ */
+function parseRecord_(key, o) {
+  var out = Object.assign({}, o);
+  out.id = Number(out.id);
+  if (['subjectGroups', 'classrooms', 'teachers', 'subjects', 'students'].indexOf(key) > -1) {
+    out.active = toBool_(out.active);
+  }
+  if (key === 'subjects') {
+    out.levels = (out.levels || '').toString().split('|').filter(Boolean);
+    out.credits = Number(out.credits);
+    out.groupId = Number(out.groupId);
+  }
+  if (key === 'teachers') { out.groupId = Number(out.groupId); }
+  if (key === 'assignments') {
+    out.classroomIds = (out.classroomIds || '').toString().split(',').filter(Boolean).map(Number);
+    out.gradeVisible = toBool_(out.gradeVisible);
+    out.teacherId = Number(out.teacherId);
+    out.subjectId = Number(out.subjectId);
+    out.termId = out.termId === '' || out.termId == null ? null : Number(out.termId);
+  }
+  if (key === 'scoreCategories') {
+    out.isBehavior = toBool_(out.isBehavior);
+    out.maxScore = Number(out.maxScore);
+    out.weight = Number(out.weight);
+    out.teacherId = Number(out.teacherId);
+    out.subjectId = Number(out.subjectId);
+  }
+  if (key === 'scores') {
+    try { out.scores = JSON.parse(out.scoresJson || '{}'); } catch (e) { out.scores = {}; }
+    delete out.scoresJson;
+    out.total = Number(out.total);
+    out.studentId = Number(out.studentId);
+    out.subjectId = Number(out.subjectId);
+    out.teacherId = Number(out.teacherId);
+    out.classroomId = Number(out.classroomId);
+    out.termId = out.termId === '' || out.termId == null ? null : Number(out.termId);
+  }
+  if (key === 'attendance') {
+    try { out.records = JSON.parse(out.recordsJson || '[]'); } catch (e) { out.records = []; }
+    delete out.recordsJson;
+    out.teacherId = Number(out.teacherId);
+    out.subjectId = Number(out.subjectId);
+    out.classroomId = Number(out.classroomId);
+    out.period = Number(out.period);
+    out.termId = out.termId === '' || out.termId == null ? null : Number(out.termId);
+  }
+  if (key === 'terms') {
+    out.active = toBool_(out.active);
+    out.year = Number(out.year);
+    out.semester = Number(out.semester);
+  }
+  if (key === 'attendanceStatuses') {
+    out.active = toBool_(out.active);
+    out.points = Number(out.points);
+    out.countsAsAbsent = toBool_(out.countsAsAbsent);
+  }
+  if (key === 'announcements') {
+    out.active = toBool_(out.active);
+    out.authorId = out.authorId === '' ? null : Number(out.authorId);
+    try { out.audience = JSON.parse(out.audience || '["all"]'); } catch (e) { out.audience = ['all']; }
+  }
+  if (key === 'timetable') {
+    out.teacherId = Number(out.teacherId);
+    out.subjectId = Number(out.subjectId);
+    out.classroomId = Number(out.classroomId);
+    out.dayOfWeek = Number(out.dayOfWeek);
+    out.period = Number(out.period);
+    out.termId = out.termId === '' || out.termId == null ? null : Number(out.termId);
+  }
+  if (key === 'schoolClosures') {
+    out.termId = out.termId === '' || out.termId == null ? null : Number(out.termId);
+  }
+  if (key === 'students') {
+    out.classroomId = Number(out.classroomId);
+    out.number = Number(out.number);
+  }
+  if (key === 'users') {
+    out.teacherId = out.teacherId === '' ? null : Number(out.teacherId);
+    out.studentId = out.studentId === '' ? null : Number(out.studentId);
+  }
+  return out;
+}
+
+/** แปลงโครงสร้างจากหน้าเว็บ กลับเป็นแถวที่จะเขียนลงชีต */
+function toCellValue_(key, obj) {
+  var o = Object.assign({}, obj);
+  if (key === 'assignments') o.classroomIds = (o.classroomIds || []).join(',');
+  if (key === 'subjects') o.levels = (o.levels || []).join('|');
+  if (key === 'scores') { o.scoresJson = JSON.stringify(o.scores || {}); }
+  if (key === 'attendance') { o.recordsJson = JSON.stringify(o.records || []); }
+  if (key === 'announcements') { o.audience = JSON.stringify(o.audience || ['all']); }
+  return o;
+}
+
+function getAllData_() {
+  var db = {};
+  Object.keys(SHEETS).forEach(function (k) {
+    if (k === 'settings') return; // จัดการแยกด้านล่าง
+    db[k] = sheetToObjects_(k).map(function (o) { return parseRecord_(k, o); });
+  });
+  db.settings = getSettingsObject_();
+  return db;
+}
+
+/** อ่านชีต Settings (key-value) แล้วแปลงเป็น object เดียว พร้อม default ค่าตั้งต้น */
+function getSettingsObject_() {
+  var rows = sheetToObjects_('settings');
+  var out = { systemEnabled: true, currentTermId: null, systemName: 'EduScore', systemIcon: 'fa-graduation-cap', attendanceThresholdPercent: 80 };
+  rows.forEach(function (r) {
+    var v = r.value;
+    try { v = JSON.parse(r.value); } catch (e) { /* เก็บเป็น string เดิม */ }
+    out[r.key] = v;
+  });
+  return out;
+}
+
+/** เขียนค่า setting ทีละคีย์ (upsert แถวใน Settings) */
+function writeSetting_(key, value) {
+  var sh = getSheet_('settings');
+  var data = sh.getDataRange().getValues();
+  var val = (typeof value === 'object') ? JSON.stringify(value) : value;
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0] === key) { sh.getRange(i + 1, 2).setValue(val); return; }
+  }
+  sh.appendRow([key, val]);
+}
+
+/** ลบข้อมูลทั้งหมดในชีต (คงหัวตาราง) — ใช้ตอนกู้คืนข้อมูล */
+function clearSheetData_(key) {
+  var sh = getSheet_(key);
+  var lastRow = sh.getLastRow();
+  if (lastRow > 1) sh.getRange(2, 1, lastRow - 1, sh.getLastColumn()).clearContent();
+}
+
+function nextId_(key) {
+  var rows = sheetToObjects_(key);
+  var max = 0;
+  rows.forEach(function (r) { var n = Number(r.id) || 0; if (n > max) max = n; });
+  return max + 1;
+}
+
+function findRowIndexById_(sh, id) {
+  var data = sh.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (Number(data[i][0]) === Number(id)) return i + 1;
+  }
+  return -1;
+}
+
+function writeRecord_(key, obj) {
+  var def = SHEETS[key];
+  var sh = getSheet_(key);
+  var row = def.cols.map(function (c) {
+    var v = obj[c];
+    if (v === undefined || v === null) return '';
+    if (Array.isArray(v)) return v.join(',');
+    if (typeof v === 'object') return JSON.stringify(v);
+    return v;
+  });
+  var idx = findRowIndexById_(sh, obj.id);
+  if (idx > 0) sh.getRange(idx, 1, 1, row.length).setValues([row]);
+  else sh.appendRow(row);
+}
+
+function deleteRecord_(key, id) {
+  var sh = getSheet_(key);
+  var idx = findRowIndexById_(sh, id);
+  if (idx > 0) sh.deleteRow(idx);
+}
+
+/* ==================== ENTRY POINTS ==================== */
+
+function doGet(e) {
+  var action = (e && e.parameter && e.parameter.action) || 'getAll';
+  var out;
+  if (action === 'getAll') {
+    out = getAllData_();
+  } else if (action === 'ping') {
+    out = { ok: true, time: new Date().toISOString() };
+  } else if (action === 'version') {
+    out = { version: 'EduScore-Backend-2', sheets: Object.keys(SHEETS), time: new Date().toISOString() };
+  } else {
+    out = { error: 'unknown action: ' + action };
+  }
+  return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  var body = {};
+  try { body = JSON.parse(e.postData.contents); } catch (err) { body = {}; }
+  var result;
+  try {
+    result = handleAction_(body.action, body.payload || {});
+  } catch (err) {
+    result = { success: false, error: String(err.message || err) };
+  }
+  return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleAction_(action, payload) {
+  switch (action) {
+    case 'login': return doLogin_(payload);
+    case 'upsert': return doUpsert_(payload);
+    case 'delete': return doDelete_(payload);
+    case 'bulk': return doBulk_(payload);
+    case 'saveScore': return doSaveScore_(payload);
+    case 'saveAttendance': return doSaveAttendance_(payload);
+    case 'importRows': return doImportRows_(payload);
+    case 'logAudit': return doLogAudit_(payload);
+    case 'saveSettings': return doSaveSettings_(payload);
+    case 'restoreAll': return doRestoreAll_(payload);
+    default: return { success: false, error: 'ไม่รู้จักคำสั่ง: ' + action };
+  }
+}
+
+function doLogin_(p) {
+  var users = sheetToObjects_('users');
+  var u = users.find(function (x) { return x.username === p.username && String(x.password) === String(p.password); });
+  if (!u) return { success: false, error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
+  var parsed = parseRecord_('users', u);
+  var settings = getSettingsObject_();
+  if (settings.systemEnabled === false && parsed.role !== 'admin') {
+    return { success: false, error: 'ระบบปิดปรับปรุงชั่วคราว กรุณาติดต่อผู้ดูแลระบบ' };
+  }
+  return { success: true, user: parsed };
+}
+
+/** เพิ่ม/แก้ไข record เดียว: payload = {sheet, data} */
+function doUpsert_(p) {
+  var key = p.sheet, data = p.data || {};
+  if (!SHEETS[key]) return { success: false, error: 'sheet ไม่ถูกต้อง: ' + key };
+  if (!data.id) data.id = nextId_(key);
+  writeRecord_(key, toCellValue_(key, data));
+  return { success: true, id: data.id };
+}
+
+/** ลบ record เดียว: payload = {sheet, id} */
+function doDelete_(p) {
+  var key = p.sheet;
+  if (!SHEETS[key]) return { success: false, error: 'sheet ไม่ถูกต้อง: ' + key };
+  deleteRecord_(key, p.id);
+  // ลบข้อมูลลูกที่เกี่ยวข้องแบบง่าย (cascade บางกรณี) จัดการฝั่ง client เป็นหลัก
+  return { success: true };
+}
+
+/** ทำหลายรายการพร้อมกัน: payload = {sheet, ids:[], action:'delete'|'patch', patch:{}} */
+function doBulk_(p) {
+  var key = p.sheet, ids = p.ids || [];
+  if (!SHEETS[key]) return { success: false, error: 'sheet ไม่ถูกต้อง: ' + key };
+  if (p.action === 'delete') {
+    ids.forEach(function (id) { deleteRecord_(key, id); });
+    return { success: true };
+  }
+  var rows = sheetToObjects_(key);
+  ids.forEach(function (id) {
+    var r = rows.find(function (x) { return Number(x.id) === Number(id); });
+    if (r) { Object.assign(r, p.patch); writeRecord_(key, r); }
+  });
+  return { success: true };
+}
+
+/** บันทึกคะแนนแบบ upsert ตาม (studentId, subjectId, classroomId, termId) */
+function doSaveScore_(p) {
+  var rows = sheetToObjects_('scores');
+  var existing = rows.find(function (r) {
+    return Number(r.studentId) === Number(p.studentId) &&
+      Number(r.subjectId) === Number(p.subjectId) &&
+      Number(r.classroomId) === Number(p.classroomId) &&
+      (r.termId === '' ? null : Number(r.termId)) === (p.termId == null ? null : Number(p.termId));
+  });
+  var obj = existing ? Object.assign({}, existing) : { id: nextId_('scores') };
+  obj.studentId = p.studentId; obj.subjectId = p.subjectId;
+  obj.teacherId = p.teacherId; obj.classroomId = p.classroomId;
+  obj.scoresJson = JSON.stringify(p.scores || {});
+  obj.total = p.total;
+  obj.termId = p.termId != null ? p.termId : '';
+  writeRecord_('scores', obj);
+  return { success: true, id: obj.id };
+}
+
+/** บันทึกเช็คชื่อแบบ upsert ตาม (teacherId, subjectId, classroomId, date, period, termId) */
+function doSaveAttendance_(p) {
+  var rows = sheetToObjects_('attendance');
+  var existing = rows.find(function (r) {
+    return Number(r.teacherId) === Number(p.teacherId) &&
+      Number(r.subjectId) === Number(p.subjectId) &&
+      Number(r.classroomId) === Number(p.classroomId) &&
+      r.date === p.date && Number(r.period) === Number(p.period) &&
+      (r.termId === '' ? null : Number(r.termId)) === (p.termId == null ? null : Number(p.termId));
+  });
+  var obj = existing ? Object.assign({}, existing) : { id: nextId_('attendance') };
+  obj.teacherId = p.teacherId; obj.subjectId = p.subjectId; obj.classroomId = p.classroomId;
+  obj.date = p.date; obj.period = p.period;
+  obj.recordsJson = JSON.stringify(p.records || []);
+  obj.termId = p.termId != null ? p.termId : '';
+  writeRecord_('attendance', obj);
+  return { success: true, id: obj.id };
+}
+
+/** นำเข้าหลายแถวพร้อมกัน (จาก CSV): payload = {sheet, rows:[{...}]} */
+function doImportRows_(p) {
+  var key = p.sheet;
+  if (!SHEETS[key]) return { success: false, error: 'sheet ไม่ถูกต้อง: ' + key };
+  var count = 0;
+  (p.rows || []).forEach(function (data) {
+    if (!data.id) data.id = nextId_(key);
+    writeRecord_(key, toCellValue_(key, data));
+    count++;
+  });
+  return { success: true, count: count };
+}
+
+/** บันทึกประวัติการแก้ไข (audit log) — ใช้กับการแก้คะแนนย้อนหลังเป็นหลัก */
+function doLogAudit_(p) {
+  var obj = {
+    id: nextId_('auditLog'),
+    ts: new Date().toISOString(),
+    userId: p.userId, userName: p.userName, action: p.action,
+    sheet: p.sheet, recordId: p.recordId, field: p.field,
+    oldValue: p.oldValue, newValue: p.newValue, note: p.note || ''
+  };
+  writeRecord_('auditLog', obj);
+  return { success: true, id: obj.id };
+}
+
+/** บันทึกการตั้งค่าระบบ: payload = {settings:{key:value,...}} */
+function doSaveSettings_(p) {
+  var settings = p.settings || {};
+  Object.keys(settings).forEach(function (k) { writeSetting_(k, settings[k]); });
+  return { success: true };
+}
+
+/** กู้คืนข้อมูลทั้งหมดจากไฟล์สำรอง: payload = ผลลัพธ์จาก getAllData_() ทั้งก้อน
+ *  จะล้างข้อมูลเดิมทุกชีต (ยกเว้นหัวตาราง) แล้วเขียนข้อมูลใหม่ทั้งหมดแทน
+ */
+function doRestoreAll_(p) {
+  var data = p.data || p; // รองรับทั้งแบบห่อ {data:...} และส่งมาตรงๆ
+  var restored = {};
+  Object.keys(SHEETS).forEach(function (key) {
+    if (key === 'settings') return;
+    clearSheetData_(key);
+    var rows = data[key] || [];
+    rows.forEach(function (row) { writeRecord_(key, toCellValue_(key, row)); });
+    restored[key] = rows.length;
+  });
+  if (data.settings) {
+    var sh = getSheet_('settings');
+    clearSheetData_('settings');
+    Object.keys(data.settings).forEach(function (k) { writeSetting_(k, data.settings[k]); });
+  }
+  return { success: true, restored: restored };
+}
+
+/* ==================== ข้อมูลตัวอย่าง (ทางเลือก) ==================== */
+/**
+ * รันฟังก์ชันนี้ครั้งเดียวถ้าต้องการชุดข้อมูลตัวอย่างเดียวกับที่อยู่ในหน้าเว็บ (โหมด DEMO)
+ * ถ้าไม่ต้องการ ให้ข้ามและเพิ่มข้อมูลจริงผ่านเมนูต่างๆ ในเว็บแทน
+ */
+function seedDemoData() {
+  setupSheets();
+
+  var term = { id: 1, year: 2568, semester: 1, label: 'ภาคเรียนที่ 1 ปีการศึกษา 2568', active: true };
+  writeRecord_('terms', term);
+
+  var defaultStatuses = [
+    { id: 1, key: 'present', label: 'มาเรียน', points: 0, color: '#059669', active: true, countsAsAbsent: false },
+    { id: 2, key: 'absent', label: 'ขาด', points: -2, color: '#DC2626', active: true, countsAsAbsent: true },
+    { id: 3, key: 'late', label: 'มาสาย', points: -1, color: '#EA580C', active: true, countsAsAbsent: false },
+    { id: 4, key: 'leave', label: 'ลากิจ', points: 0, color: '#2563EB', active: true, countsAsAbsent: true },
+    { id: 5, key: 'leave-early', label: 'ออกกลางคาบ', points: -1, color: '#D97706', active: true, countsAsAbsent: false }
+  ];
+  defaultStatuses.forEach(function (s) { writeRecord_('attendanceStatuses', s); });
+
+  writeSetting_('systemEnabled', true);
+  writeSetting_('currentTermId', 1);
+  writeSetting_('systemName', 'EduScore');
+  writeSetting_('systemIcon', 'fa-graduation-cap');
+  writeSetting_('attendanceThresholdPercent', 80);
+
+  var groups = [
+    { id: 1, name: 'กลุ่มสาระการเรียนรู้คณิตศาสตร์', active: true },
+    { id: 2, name: 'กลุ่มสาระการเรียนรู้วิทยาศาสตร์และเทคโนโลยี', active: true },
+    { id: 3, name: 'กลุ่มสาระการเรียนรู้ภาษาไทย', active: true },
+    { id: 4, name: 'กลุ่มสาระการเรียนรู้ภาษาต่างประเทศ', active: true },
+    { id: 5, name: 'กลุ่มสาระการเรียนรู้สังคมศึกษา ศาสนาและวัฒนธรรม', active: true }
+  ];
+  groups.forEach(function (g) { writeRecord_('subjectGroups', g); });
+
+  var teachers = [
+    { id: 1, code: 'T001', name: 'ครูสมชาย ใจดี', active: true, groupId: 1 },
+    { id: 2, code: 'T002', name: 'ครูสมหญิง รักเรียน', active: true, groupId: 2 },
+    { id: 3, code: 'T003', name: 'ครูวิชัย มุ่งมั่น', active: true, groupId: 3 }
+  ];
+  teachers.forEach(function (t) { writeRecord_('teachers', t); });
+
+  var subjects = [
+    { id: 1, name: 'คณิตศาสตร์', code: 'MAT101', active: true, credits: 3, groupId: 1, levels: ['ม.1', 'ม.2', 'ม.3'] },
+    { id: 2, name: 'วิทยาศาสตร์', code: 'SCI201', active: true, credits: 3, groupId: 2, levels: ['ม.1', 'ม.2', 'ม.3'] },
+    { id: 3, name: 'ภาษาไทย', code: 'THA301', active: true, credits: 3, groupId: 3, levels: ['ม.1', 'ม.2', 'ม.3'] }
+  ];
+  subjects.forEach(function (s) { writeRecord_('subjects', toCellValue_('subjects', s)); });
+
+  var classrooms = [
+    { id: 1, level: 'ม.1', room: '1', active: true },
+    { id: 2, level: 'ม.1', room: '2', active: true }
+  ];
+  classrooms.forEach(function (c) { writeRecord_('classrooms', c); });
+
+  var assignments = [
+    { id: 1, teacherId: 1, subjectId: 1, classroomIds: [1, 2], gradeVisible: true, termId: 1 },
+    { id: 2, teacherId: 2, subjectId: 2, classroomIds: [1, 2], gradeVisible: true, termId: 1 },
+    { id: 3, teacherId: 3, subjectId: 3, classroomIds: [1, 2], gradeVisible: true, termId: 1 }
+  ];
+  assignments.forEach(function (a) { writeRecord_('assignments', toCellValue_('assignments', a)); });
+
+  var students = [
+    { id: 1, studentId: 'M101001', name: 'สิทธิชัย กล้าหาญ', classroomId: 1, number: 1, active: true },
+    { id: 2, studentId: 'M101002', name: 'ปรียา สว่างจิต', classroomId: 1, number: 2, active: true },
+    { id: 3, studentId: 'M102001', name: 'พีรพัฒน์ รุ่งเรือง', classroomId: 2, number: 1, active: true }
+  ];
+  students.forEach(function (s) { writeRecord_('students', s); });
+
+  var catId = 1, cats = [];
+  assignments.forEach(function (a) {
+    [
+      { name: 'สอบกลางภาค', group: 'สอบ', maxScore: 50, isBehavior: false, weight: 30 },
+      { name: 'สอบปลายภาค', group: 'สอบ', maxScore: 50, isBehavior: false, weight: 50 },
+      { name: 'พฤติกรรม', group: 'พฤติกรรม', maxScore: 20, isBehavior: true, weight: 10 },
+      { name: 'การบ้าน', group: 'งาน', maxScore: 20, isBehavior: false, weight: 10 }
+    ].forEach(function (t) {
+      cats.push(Object.assign({ id: catId++, teacherId: a.teacherId, subjectId: a.subjectId }, t));
+    });
+  });
+  cats.forEach(function (c) { writeRecord_('scoreCategories', c); });
+
+  var users = [
+    { id: 0, username: 'admin', password: 'admin123', role: 'admin', name: 'ผู้ดูแลระบบ', teacherId: '', studentId: '', email: '', phone: '' },
+    { id: 1, username: 'teacher1', password: '1234', role: 'teacher', name: 'ครูสมชาย ใจดี', teacherId: 1, studentId: '', email: '', phone: '' },
+    { id: 2, username: 'teacher2', password: '1234', role: 'teacher', name: 'ครูสมหญิง รักเรียน', teacherId: 2, studentId: '', email: '', phone: '' },
+    { id: 3, username: 'teacher3', password: '1234', role: 'teacher', name: 'ครูวิชัย มุ่งมั่น', teacherId: 3, studentId: '', email: '', phone: '' },
+    { id: 10, username: 'M101001', password: '1234', role: 'student', name: 'สิทธิชัย กล้าหาญ', teacherId: '', studentId: 1, email: '', phone: '' },
+    { id: 11, username: 'M102001', password: '1234', role: 'student', name: 'พีรพัฒน์ รุ่งเรือง', teacherId: '', studentId: 3, email: '', phone: '' }
+  ];
+  users.forEach(function (u) { writeRecord_('users', u); });
+
+  SpreadsheetApp.getActiveSpreadsheet().toast('เพิ่มข้อมูลตัวอย่างเรียบร้อย');
+}
