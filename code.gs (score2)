@@ -74,6 +74,53 @@ function sheetToObjects_(key) {
 
 function toBool_(v) { return v === true || v === 'TRUE' || v === 'true' || v === 1 || v === '1'; }
 
+/** ฟิลด์ที่เป็นรหัส/วันที่/รหัสผ่าน (ไม่ใช้คำนวณ) — จะถูกบังคับเป็นข้อความล้วนด้วยเครื่องหมาย ' นำหน้า
+ *  เพื่อกัน Google Sheets แปลงเป็นตัวเลข/วันที่อัตโนมัติ (เช่น ตัด 0 หน้าออก หรือแปลงวันที่เป็น serial number) */
+var FORCE_TEXT_FIELDS = {
+  students: ['studentId'],
+  users: ['username', 'password'],
+  teachers: ['code'],
+  subjects: ['code'],
+  classrooms: ['room'],
+  attendance: ['date'],
+  schoolClosures: ['startDate', 'endDate'],
+  announcements: ['createdAt', 'startAt', 'endAt'],
+  auditLog: ['ts'],
+  attendanceStatuses: ['key']
+};
+function forceTextValue_(key, col, v) {
+  var fields = FORCE_TEXT_FIELDS[key];
+  if (!fields || fields.indexOf(col) === -1) return v;
+  if (v === '' || v === null || v === undefined) return v;
+  var s = String(v);
+  return s.charAt(0) === "'" ? s : "'" + s;
+}
+
+/** เข้ารหัส/ถอดรหัสคะแนนแต่ละหัวข้อ แบบข้อความล้วน "catId:value|catId:value" (ไม่ใช่ JSON) */
+function encodeScores_(scoresObj) {
+  scoresObj = scoresObj || {};
+  return Object.keys(scoresObj).map(function (k) { return k + ':' + scoresObj[k]; }).join('|');
+}
+function decodeScores_(text) {
+  var out = {};
+  (text || '').split('|').filter(Boolean).forEach(function (pair) {
+    var kv = pair.split(':');
+    if (kv.length === 2) out[kv[0]] = Number(kv[1]);
+  });
+  return out;
+}
+
+/** เข้ารหัส/ถอดรหัสรายการเช็คชื่อ แบบข้อความล้วน "studentId:status:points|..." (ไม่ใช่ JSON) */
+function encodeRecords_(recordsArr) {
+  return (recordsArr || []).map(function (r) { return r.studentId + ':' + r.status + ':' + r.points; }).join('|');
+}
+function decodeRecords_(text) {
+  return (text || '').split('|').filter(Boolean).map(function (pair) {
+    var p = pair.split(':');
+    return { studentId: Number(p[0]), status: p[1], points: Number(p[2]) };
+  });
+}
+
 /** แปลงข้อมูลดิบจากชีต (ทุกอย่างเป็น string/number) กลับเป็นโครงสร้างที่หน้าเว็บใช้ */
 function parseRecord_(key, o) {
   var out = Object.assign({}, o);
@@ -102,7 +149,7 @@ function parseRecord_(key, o) {
     out.subjectId = Number(out.subjectId);
   }
   if (key === 'scores') {
-    try { out.scores = JSON.parse(out.scoresJson || '{}'); } catch (e) { out.scores = {}; }
+    out.scores = decodeScores_(out.scoresJson);
     delete out.scoresJson;
     out.total = Number(out.total);
     out.studentId = Number(out.studentId);
@@ -112,7 +159,7 @@ function parseRecord_(key, o) {
     out.termId = out.termId === '' || out.termId == null ? null : Number(out.termId);
   }
   if (key === 'attendance') {
-    try { out.records = JSON.parse(out.recordsJson || '[]'); } catch (e) { out.records = []; }
+    out.records = decodeRecords_(out.recordsJson);
     delete out.recordsJson;
     out.teacherId = Number(out.teacherId);
     out.subjectId = Number(out.subjectId);
@@ -133,7 +180,8 @@ function parseRecord_(key, o) {
   if (key === 'announcements') {
     out.active = toBool_(out.active);
     out.authorId = out.authorId === '' ? null : Number(out.authorId);
-    try { out.audience = JSON.parse(out.audience || '["all"]'); } catch (e) { out.audience = ['all']; }
+    out.audience = (out.audience || 'all').toString().split(',').filter(Boolean);
+    if (!out.audience.length) out.audience = ['all'];
   }
   if (key === 'timetable') {
     out.teacherId = Number(out.teacherId);
@@ -162,9 +210,9 @@ function toCellValue_(key, obj) {
   var o = Object.assign({}, obj);
   if (key === 'assignments') o.classroomIds = (o.classroomIds || []).join(',');
   if (key === 'subjects') o.levels = (o.levels || []).join('|');
-  if (key === 'scores') { o.scoresJson = JSON.stringify(o.scores || {}); }
-  if (key === 'attendance') { o.recordsJson = JSON.stringify(o.records || []); }
-  if (key === 'announcements') { o.audience = JSON.stringify(o.audience || ['all']); }
+  if (key === 'scores') { o.scoresJson = encodeScores_(o.scores); }
+  if (key === 'attendance') { o.recordsJson = encodeRecords_(o.records); }
+  if (key === 'announcements') { o.audience = (o.audience || ['all']).join(','); }
   return o;
 }
 
@@ -229,9 +277,9 @@ function writeRecord_(key, obj) {
   var row = def.cols.map(function (c) {
     var v = obj[c];
     if (v === undefined || v === null) return '';
-    if (Array.isArray(v)) return v.join(',');
-    if (typeof v === 'object') return JSON.stringify(v);
-    return v;
+    if (Array.isArray(v)) v = v.join(',');
+    else if (typeof v === 'object') v = JSON.stringify(v);
+    return forceTextValue_(key, c, v);
   });
   var idx = findRowIndexById_(sh, obj.id);
   if (idx > 0) sh.getRange(idx, 1, 1, row.length).setValues([row]);
@@ -347,7 +395,7 @@ function doSaveScore_(p) {
   var obj = existing ? Object.assign({}, existing) : { id: nextId_('scores') };
   obj.studentId = p.studentId; obj.subjectId = p.subjectId;
   obj.teacherId = p.teacherId; obj.classroomId = p.classroomId;
-  obj.scoresJson = JSON.stringify(p.scores || {});
+  obj.scoresJson = encodeScores_(p.scores);
   obj.total = p.total;
   obj.termId = p.termId != null ? p.termId : '';
   writeRecord_('scores', obj);
@@ -367,7 +415,7 @@ function doSaveAttendance_(p) {
   var obj = existing ? Object.assign({}, existing) : { id: nextId_('attendance') };
   obj.teacherId = p.teacherId; obj.subjectId = p.subjectId; obj.classroomId = p.classroomId;
   obj.date = p.date; obj.period = p.period;
-  obj.recordsJson = JSON.stringify(p.records || []);
+  obj.recordsJson = encodeRecords_(p.records);
   obj.termId = p.termId != null ? p.termId : '';
   writeRecord_('attendance', obj);
   return { success: true, id: obj.id };
