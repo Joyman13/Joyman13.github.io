@@ -1,0 +1,2035 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro City Heist - 2D Top-Down Action</title>
+    <!-- Tailwind CSS for UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Chakra Petch', sans-serif;
+            background-color: #0b0f19;
+            user-select: none;
+            touch-action: none;
+        }
+        canvas {
+            image-rendering: pixelated;
+            cursor: crosshair;
+        }
+        /* Custom scrollbar for game UI logs */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.1);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #ef4444;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-2 md:p-4 text-white overflow-hidden">
+
+    <!-- Main Game UI Wrapper -->
+    <div class="relative w-full max-w-5xl bg-slate-900 border-4 border-red-600 rounded-xl overflow-hidden shadow-[0_0_30px_rgba(239,68,68,0.3)] flex flex-col">
+        
+        <!-- Header HUD -->
+        <div class="bg-slate-950 border-b-4 border-red-600 p-3 flex flex-wrap items-center justify-between gap-4 z-10">
+            <!-- Game Title & Wanted Level -->
+            <div class="flex items-center gap-4">
+                <span class="text-xl md:text-2xl font-bold tracking-wider text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]">RETRO CITY HEIST</span>
+                <div class="flex items-center gap-1 bg-slate-900 px-3 py-1 rounded border border-red-500/30">
+                    <span class="text-xs text-slate-400 mr-1 uppercase">WANTED:</span>
+                    <div id="wanted-stars" class="flex gap-1 text-lg text-yellow-400">
+                        <!-- Stars will be inserted here dynamically -->
+                        <i class="far fa-star"></i>
+                        <i class="far fa-star"></i>
+                        <i class="far fa-star"></i>
+                        <i class="far fa-star"></i>
+                        <i class="far fa-star"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Bar (HP, Armor, Weapon, Cash) -->
+            <div class="flex flex-wrap items-center gap-4 md:gap-6 text-sm">
+                <!-- Health -->
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-heart text-red-500 text-lg"></i>
+                    <div class="w-24 md:w-32 bg-slate-800 h-4 rounded-full overflow-hidden border border-slate-700">
+                        <div id="hp-bar" class="bg-gradient-to-r from-red-600 to-red-400 h-full transition-all duration-100" style="width: 100%;"></div>
+                    </div>
+                    <span id="hp-text" class="font-bold w-8">100</span>
+                </div>
+
+                <!-- Armor -->
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-shield-alt text-blue-400 text-lg"></i>
+                    <div class="w-24 bg-slate-800 h-4 rounded-full overflow-hidden border border-slate-700">
+                        <div id="armor-bar" class="bg-gradient-to-r from-blue-600 to-blue-400 h-full transition-all duration-100" style="width: 100%;"></div>
+                    </div>
+                    <span id="armor-text" class="font-bold w-8">100</span>
+                </div>
+
+                <!-- Weapon Info -->
+                <div class="flex items-center gap-2 bg-slate-900 px-3 py-1 rounded border border-slate-700">
+                    <span id="weapon-icon" class="text-yellow-500"><i class="fas fa-hand-fist"></i></span>
+                    <span id="weapon-name" class="font-bold uppercase tracking-wide text-xs">หมัดเปล่า</span>
+                    <span id="ammo-text" class="text-xs text-slate-400"></span>
+                </div>
+
+                <!-- Cash / Score -->
+                <div class="flex items-center gap-1.5 text-green-400 font-bold text-lg md:text-xl">
+                    <span>$</span><span id="score-text">00000000</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Canvas Game Container -->
+        <div class="relative flex-1 bg-black flex justify-center items-center overflow-hidden">
+            <canvas id="gameCanvas" width="960" height="540" class="w-full h-auto aspect-video max-h-[70vh]"></canvas>
+
+            <!-- Loading / Start Screen -->
+            <div id="start-screen" class="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-6 z-20 text-center">
+                <h1 class="text-4xl md:text-6xl font-black text-red-600 tracking-wider mb-2 animate-pulse drop-shadow-[0_0_20px_rgba(239,68,68,0.6)]">RETRO CITY HEIST</h1>
+                <p class="text-slate-400 text-sm md:text-base max-w-md mb-8">เกมแอ็กชันขับรถยิงปืนแบบ 2D คลาสสิก เอาชีวิตรอดในเมืองใหญ่อันโหดร้าย ปล้นรถ หลบหนีตำรวจ และทำคะแนนให้สูงสุด!</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left max-w-2xl bg-slate-900/80 p-5 rounded-lg border border-slate-800 mb-8 text-xs md:text-sm">
+                    <div>
+                        <h3 class="text-red-400 font-bold mb-2 uppercase text-center md:text-left"><i class="fas fa-keyboard mr-2"></i>การควบคุม (คอมพิวเตอร์)</h3>
+                        <ul class="space-y-1 text-slate-300">
+                            <li><b class="text-white">เดิน/ขับรถ:</b> W, A, S, D หรือ ปุ่มลูกศร</li>
+                            <li><b class="text-white">เล็งและยิง:</b> ขยับเมาส์เพื่อเล็ง / คลิกซ้ายเพื่อยิง</li>
+                            <li><b class="text-white">ขึ้น/ลงรถ:</b> กดปุ่ม <span class="bg-slate-700 px-1.5 py-0.5 rounded text-yellow-400">F</span> หรือ <span class="bg-slate-700 px-1.5 py-0.5 rounded text-yellow-400">Enter</span></li>
+                            <li><b class="text-white">เปลี่ยนอาวุธ:</b> กดปุ่ม <span class="bg-slate-700 px-1.5 py-0.5 rounded">1</span>, <span class="bg-slate-700 px-1.5 py-0.5 rounded">2</span>, <span class="bg-slate-700 px-1.5 py-0.5 rounded">3</span>, <span class="bg-slate-700 px-1.5 py-0.5 rounded">4</span></li>
+                            <li><b class="text-white">เบรกมือ/ดริฟต์:</b> กด <span class="bg-slate-700 px-1.5 py-0.5 rounded">Spacebar</span></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="text-red-400 font-bold mb-2 uppercase text-center md:text-left"><i class="fas fa-mobile-alt mr-2"></i>การเล่นบนมือถือ (ระบบสัมผัส)</h3>
+                        <p class="text-slate-300 leading-relaxed">ใช้ **Virtual Joystick** ทางซ้ายเพื่อควบคุมทิศทางเดินหรือขับรถ และปุ่มสัมผัสทางด้านขวาเพื่อ ยิงปืน, ขโมยรถ หรือเปลี่ยนอาวุธ</p>
+                        <p class="text-yellow-400 font-semibold mt-3 text-center md:text-left"><i class="fas fa-music mr-2"></i>รองรับระบบเสียง Retro ในตัว!</p>
+                    </div>
+                </div>
+
+                <button id="start-btn" class="px-8 py-3.5 bg-red-600 hover:bg-red-500 active:scale-95 text-xl font-bold rounded-lg border-b-4 border-red-800 shadow-[0_0_20px_rgba(239,68,68,0.4)] transition-all uppercase tracking-widest text-white">
+                    เริ่มเกมเลย! (START GAME)
+                </button>
+            </div>
+
+            <!-- Game Over Screen -->
+            <div id="gameover-screen" class="absolute inset-0 bg-black/90 hidden flex flex-col items-center justify-center p-6 z-20 text-center">
+                <h1 class="text-5xl md:text-7xl font-black text-red-600 tracking-wider mb-2 drop-shadow-[0_0_25px_rgba(220,38,38,0.8)]">WASTED</h1>
+                <p class="text-red-400 text-lg font-bold mb-6 uppercase">คุณถูกตำรวจจับกุมหรือเสียชีวิต!</p>
+                
+                <div class="bg-slate-900/90 border border-red-500/30 p-5 rounded-lg mb-8 min-w-[280px]">
+                    <div class="text-slate-400 text-sm mb-1">เงินรางวัลสะสมที่ทำได้</div>
+                    <div class="text-3xl font-bold text-green-400">$<span id="final-score">0</span></div>
+                    <div class="text-xs text-slate-500 mt-2">ระดับความต้องการสูงสุด: <span id="final-wanted" class="text-yellow-400 font-bold">0 ดาว</span></div>
+                </div>
+
+                <button id="restart-btn" class="px-8 py-3.5 bg-green-600 hover:bg-green-500 active:scale-95 text-lg font-bold rounded-lg border-b-4 border-green-800 shadow-[0_0_20px_rgba(34,197,94,0.4)] transition-all uppercase tracking-wider text-white">
+                    เล่นใหม่อีกครั้ง
+                </button>
+            </div>
+
+            <!-- On-Screen Controls for Mobile (Hidden on Desktop by default, toggled via JS) -->
+            <div id="mobile-controls" class="absolute inset-0 pointer-events-none hidden md:hidden select-none">
+                <!-- Left Stick (Movement) -->
+                <div class="absolute bottom-6 left-6 w-32 h-32 bg-slate-950/30 rounded-full border-2 border-white/20 flex items-center justify-center pointer-events-auto backdrop-blur-sm" id="touch-joystick-container">
+                    <div class="w-12 h-12 bg-red-600 rounded-full border-2 border-white shadow-lg cursor-pointer transform translate-x-0 translate-y-0" id="touch-joystick-handle"></div>
+                </div>
+
+                <!-- Right Action Buttons -->
+                <div class="absolute bottom-6 right-6 flex flex-col gap-3 pointer-events-auto items-end">
+                    <!-- Top Action row -->
+                    <div class="flex gap-2">
+                        <!-- Switch Weapon Button -->
+                        <button id="btn-touch-weapon" class="w-12 h-12 bg-slate-900/80 active:bg-slate-700 text-white rounded-full border border-white/20 flex items-center justify-center shadow-lg active:scale-95 text-lg">
+                            <i class="fas fa-sync"></i>
+                        </button>
+                        <!-- Enter / Exit Car Button -->
+                        <button id="btn-touch-car" class="w-14 h-14 bg-yellow-500 active:bg-yellow-400 text-slate-950 rounded-full border-2 border-white flex items-center justify-center shadow-lg active:scale-95 text-xl font-bold">
+                            <i class="fas fa-car"></i>
+                        </button>
+                    </div>
+
+                    <!-- Primary Action (Shoot / Attack) -->
+                    <button id="btn-touch-shoot" class="w-20 h-20 bg-red-600 active:bg-red-500 text-white rounded-full border-4 border-white flex items-center justify-center shadow-xl active:scale-95 text-2xl font-black">
+                        <i class="fas fa-crosshairs animate-pulse"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Toast Alert Box for game events (e.g. "ขโมยรถสำเร็จ!", "ตำรวจกำลังล่าคุณ!") -->
+            <div id="game-toast" class="absolute top-4 left-1/2 transform -translate-x-1/2 bg-slate-900/90 border-2 border-yellow-500 text-yellow-400 px-4 py-2 rounded shadow-xl font-bold text-sm tracking-wide hidden z-30 animate-bounce">
+                แจ้งเตือนระบบ
+            </div>
+        </div>
+
+        <!-- Footer / Instructions & Log Box -->
+        <div class="bg-slate-950 p-3 border-t-2 border-slate-800 flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between text-xs text-slate-400">
+            <div class="flex items-center gap-2">
+                <span class="text-red-500 font-bold"><i class="fas fa-info-circle mr-1"></i> เคล็ดลับ:</span>
+                <span>ยิงพลเรือนหรือชนรถคันอื่นเพื่อสะสมเงิน แต่ระวังตำรวจ 5 ดาวที่จะส่งรถไล่ล่าชนคุณจนยับ!</span>
+            </div>
+            <div class="flex items-center justify-between md:justify-end gap-4 border-t border-slate-800 md:border-t-0 pt-2 md:pt-0">
+                <div class="flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-green-500 animate-ping"></span>
+                    <span>FPS: <span id="fps-counter" class="text-white font-mono">60</span></span>
+                </div>
+                <button id="sound-toggle-btn" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded border border-slate-600 flex items-center gap-1.5">
+                    <i class="fas fa-volume-up" id="sound-icon"></i> <span id="sound-text">เปิดเสียง</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Retro Game Engine Implementation -->
+    <script>
+        // --- 1. AUDIO SYNTHESIZER (Web Audio API) ---
+        class RetroAudioEngine {
+            constructor() {
+                this.ctx = null;
+                this.enabled = false;
+                this.engineSoundNode = null;
+                this.engineOsc = null;
+                this.sirenOsc = null;
+            }
+
+            init() {
+                if (this.ctx) return;
+                try {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                    this.enabled = true;
+                } catch(e) {
+                    console.warn("Web Audio API not supported", e);
+                }
+            }
+
+            playShoot() {
+                if (!this.enabled || !this.ctx) return;
+                const ctx = this.ctx;
+                const now = ctx.currentTime;
+                
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+                
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            }
+
+            playExplosion() {
+                if (!this.enabled || !this.ctx) return;
+                const ctx = this.ctx;
+                const now = ctx.currentTime;
+                
+                // Create Noise Buffer
+                const bufferSize = ctx.sampleRate * 0.4;
+                const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                
+                const noise = ctx.createBufferSource();
+                noise.buffer = buffer;
+                
+                const filter = ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(300, now);
+                filter.frequency.exponentialRampToValueAtTime(10, now + 0.4);
+                
+                const gain = ctx.createGain();
+                gain.gain.setValueAtTime(0.6, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(ctx.destination);
+                
+                noise.start(now);
+                noise.stop(now + 0.4);
+            }
+
+            playCarCrash() {
+                if (!this.enabled || !this.ctx) return;
+                const ctx = this.ctx;
+                const now = ctx.currentTime;
+                
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(120, now);
+                osc.frequency.linearRampToValueAtTime(30, now + 0.12);
+                
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.12);
+            }
+
+            playPickUp() {
+                if (!this.enabled || !this.ctx) return;
+                const ctx = this.ctx;
+                const now = ctx.currentTime;
+                
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.setValueAtTime(600, now + 0.08);
+                
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            }
+
+            // Continuous loop simulation for car engine
+            startEngineSound() {
+                if (!this.enabled || !this.ctx || this.engineOsc) return;
+                const ctx = this.ctx;
+                const now = ctx.currentTime;
+
+                this.engineOsc = ctx.createOscillator();
+                this.engineOsc.type = 'sawtooth';
+                this.engineOsc.frequency.setValueAtTime(55, now); // Low RPM rumbling
+                
+                // Lowpass filter to make it sound like an engine interior/exhaust rumble
+                const filter = ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(120, now);
+
+                this.engineSoundNode = ctx.createGain();
+                this.engineSoundNode.gain.setValueAtTime(0.0, now); // Start muted
+
+                this.engineOsc.connect(filter);
+                filter.connect(this.engineSoundNode);
+                this.engineSoundNode.connect(ctx.destination);
+                this.engineOsc.start(now);
+            }
+
+            setEnginePitch(speedRatio) {
+                if (!this.enabled || !this.engineOsc || !this.engineSoundNode) return;
+                const targetFreq = 50 + (speedRatio * 85); // Shift pitch based on speed
+                const targetGain = 0.04 + (speedRatio * 0.08); // Slightly louder when speeding
+                
+                const now = this.ctx.currentTime;
+                this.engineOsc.frequency.setTargetAtTime(targetFreq, now, 0.1);
+                this.engineSoundNode.gain.setTargetAtTime(targetGain, now, 0.1);
+            }
+
+            stopEngineSound() {
+                if (this.engineOsc) {
+                    try { this.engineOsc.stop(); } catch(e){}
+                    this.engineOsc = null;
+                }
+                this.engineSoundNode = null;
+            }
+
+            // Continuous loop for Police Siren
+            startSirenSound() {
+                if (!this.enabled || !this.ctx || this.sirenOsc) return;
+                const ctx = this.ctx;
+                const now = ctx.currentTime;
+
+                this.sirenOsc = ctx.createOscillator();
+                this.sirenOsc.type = 'sine';
+                this.sirenOsc.frequency.setValueAtTime(600, now);
+
+                this.sirenGain = ctx.createGain();
+                this.sirenGain.gain.setValueAtTime(0.03, now);
+
+                this.sirenOsc.connect(this.sirenGain);
+                this.sirenGain.connect(ctx.destination);
+                this.sirenOsc.start(now);
+
+                // LFO Effect for alternating sound
+                this.sirenInterval = setInterval(() => {
+                    if (!this.sirenOsc || !this.enabled) return;
+                    const cNow = ctx.currentTime;
+                    const currentFreq = this.sirenOsc.frequency.value;
+                    const targetFreq = currentFreq > 700 ? 500 : 900;
+                    this.sirenOsc.frequency.exponentialRampToValueAtTime(targetFreq, cNow + 0.35);
+                }, 400);
+            }
+
+            stopSirenSound() {
+                if (this.sirenOsc) {
+                    try { this.sirenOsc.stop(); } catch(e){}
+                    this.sirenOsc = null;
+                }
+                if (this.sirenInterval) {
+                    clearInterval(this.sirenInterval);
+                    this.sirenInterval = null;
+                }
+            }
+        }
+
+        const sfx = new RetroAudioEngine();
+
+        // Toggle Audio Button
+        const soundToggleBtn = document.getElementById('sound-toggle-btn');
+        const soundIcon = document.getElementById('sound-icon');
+        const soundText = document.getElementById('sound-text');
+        
+        soundToggleBtn.addEventListener('click', () => {
+            sfx.init();
+            if (sfx.ctx.state === 'suspended') {
+                sfx.ctx.resume();
+            }
+            sfx.enabled = !sfx.enabled;
+            if (sfx.enabled) {
+                soundIcon.className = "fas fa-volume-up";
+                soundText.innerText = "เปิดเสียงแล้ว";
+                sfx.playPickUp();
+            } else {
+                soundIcon.className = "fas fa-volume-mute";
+                soundText.innerText = "ปิดเสียง";
+                sfx.stopEngineSound();
+                sfx.stopSirenSound();
+            }
+        });
+
+
+        // --- 2. GAME SETUP & DESIGN CONSTANTS ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Virtual Screen Size (High logic resolution, HTML5 fits visually via CSS)
+        const SCREEN_WIDTH = 960;
+        const SCREEN_HEIGHT = 540;
+
+        // City Settings & Tile Size
+        const TILE_SIZE = 120; // 1 Grid Tile
+        const CITY_GRID_WIDTH = 25; // 25 columns
+        const CITY_GRID_HEIGHT = 25; // 25 rows
+        const MAP_WIDTH = CITY_GRID_WIDTH * TILE_SIZE;
+        const MAP_HEIGHT = CITY_GRID_HEIGHT * TILE_SIZE;
+
+        // Weapon Configs
+        const WEAPONS = [
+            { id: 0, name: "หมัดเปล่า", fireRate: 250, damage: 20, isMelee: true, icon: "fa-hand-fist", color: "#f87171" },
+            { id: 1, name: "Pistol", fireRate: 400, damage: 30, isMelee: false, ammo: 40, maxAmmo: 100, icon: "fa-gun", color: "#38bdf8", speed: 18 },
+            { id: 2, name: "SMG", fireRate: 110, damage: 15, isMelee: false, ammo: 120, maxAmmo: 250, icon: "fa-person-rifle", color: "#fbbf24", speed: 20 },
+            { id: 3, name: "Shotgun", fireRate: 850, damage: 25, isMelee: false, ammo: 15, maxAmmo: 40, icon: "fa-hammer", color: "#a78bfa", speed: 14, pellets: 5 }
+        ];
+
+        // Entity Types
+        const TYPE_PLAYER = 0;
+        const TYPE_PED = 1;
+        const TYPE_COP = 2;
+
+
+        // --- 3. CLASS ENTITIES ---
+
+        // Game State Management Container
+        class Game {
+            constructor() {
+                this.player = null;
+                this.buildings = [];
+                this.decorations = []; // Trees, traffic signs, crates
+                this.pedestrians = [];
+                this.vehicles = [];
+                this.bullets = [];
+                this.particles = [];
+                
+                this.score = 0;
+                this.wantedLevel = 0; // 0 to 5 stars
+                this.wantedProgress = 0; // Cumulative action points to increase wanted level
+                this.lastTime = 0;
+                this.fps = 60;
+                this.frameCount = 0;
+                this.fpsTimer = 0;
+                this.isGameOver = false;
+                this.isStarted = false;
+
+                // Spawning Timers
+                this.spawnPedTimer = 0;
+                this.spawnVehicleTimer = 0;
+                this.spawnCopTimer = 0;
+
+                this.map = [];
+                this.camera = { x: 0, y: 0, zoom: 1 };
+            }
+
+            init() {
+                this.score = 0;
+                this.wantedLevel = 0;
+                this.wantedProgress = 0;
+                this.isGameOver = false;
+                this.buildings = [];
+                this.decorations = [];
+                this.pedestrians = [];
+                this.vehicles = [];
+                this.bullets = [];
+                this.particles = [];
+
+                // 1. Map & City Grid Generation
+                this.generateCityMap();
+
+                // 2. Spawn Player at a safe road location
+                const spawnPos = this.getSafeRoadSpawnPosition();
+                this.player = new Player(spawnPos.x, spawnPos.y);
+
+                // 3. Pre-populate civilian cars and pedestrians
+                for (let i = 0; i < 20; i++) {
+                    const pos = this.getSafeRoadSpawnPosition();
+                    if (pos) {
+                        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#ffffff', '#64748b'];
+                        this.vehicles.push(new Vehicle(pos.x, pos.y, colors[Math.floor(Math.random() * colors.length)], false));
+                    }
+                }
+
+                for (let i = 0; i < 35; i++) {
+                    const pos = this.getSafeSidewalkSpawnPosition();
+                    if (pos) {
+                        this.pedestrians.push(new Pedestrian(pos.x, pos.y));
+                    }
+                }
+
+                // Initial UI Sync
+                updateHUD(this);
+            }
+
+            generateCityMap() {
+                // Initialize empty layout
+                this.map = Array(CITY_GRID_HEIGHT).fill(null).map(() => Array(CITY_GRID_WIDTH).fill(0));
+                
+                // Map Design Logic:
+                // 0 = Road/Sidewalk (Driveable)
+                // 1 = Building Block
+                // Let's create an urban layout with broad roads (2 tiles wide grid) intersecting block neighborhoods
+                for (let y = 0; y < CITY_GRID_HEIGHT; y++) {
+                    for (let x = 0; x < CITY_GRID_WIDTH; x++) {
+                        // Outer boundaries are building walls to lock the gameplay region
+                        if (x === 0 || y === 0 || x === CITY_GRID_WIDTH - 1 || y === CITY_GRID_HEIGHT - 1) {
+                            this.map[y][x] = 1;
+                        } 
+                        // Intersecting road networks (every 4th tile is road, wide roads of 2 tiles)
+                        else if ((x % 5 === 0 || (x-1) % 5 === 0) || (y % 5 === 0 || (y-1) % 5 === 0)) {
+                            this.map[y][x] = 0; // Road
+                        } else {
+                            this.map[y][x] = 1; // Building block
+                        }
+                    }
+                }
+
+                // Spawn Building Entities based on map grid representation
+                for (let y = 0; y < CITY_GRID_HEIGHT; y++) {
+                    for (let x = 0; x < CITY_GRID_WIDTH; x++) {
+                        if (this.map[y][x] === 1) {
+                            // Find or create building block
+                            const px = x * TILE_SIZE;
+                            const py = y * TILE_SIZE;
+                            const colors = ['#1e293b', '#0f172a', '#111827', '#1f2937'];
+                            const selectedColor = colors[(x + y) % colors.length];
+                            
+                            this.buildings.push({
+                                x: px,
+                                y: py,
+                                w: TILE_SIZE,
+                                h: TILE_SIZE,
+                                color: selectedColor,
+                                height: 35 + ((x * y) % 3) * 15 // Height simulation for simulated perspective shadow
+                            });
+                        } else {
+                            // Decorate streets (occasional trash cans, trees on sidewalk corner edges)
+                            if (Math.random() < 0.08) {
+                                this.decorations.push({
+                                    x: x * TILE_SIZE + Math.random() * TILE_SIZE,
+                                    y: y * TILE_SIZE + Math.random() * TILE_SIZE,
+                                    type: Math.random() < 0.5 ? 'tree' : 'crate',
+                                    radius: 12 + Math.random() * 8
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            getSafeRoadSpawnPosition() {
+                let attempts = 0;
+                while (attempts < 100) {
+                    const gx = Math.floor(Math.random() * (CITY_GRID_WIDTH - 2)) + 1;
+                    const gy = Math.floor(Math.random() * (CITY_GRID_HEIGHT - 2)) + 1;
+                    if (this.map[gy][gx] === 0) {
+                        return {
+                            x: gx * TILE_SIZE + TILE_SIZE / 2,
+                            y: gy * TILE_SIZE + TILE_SIZE / 2
+                        };
+                    }
+                    attempts++;
+                }
+                return { x: 300, y: 300 }; // fallback
+            }
+
+            getSafeSidewalkSpawnPosition() {
+                // Return sidewalk (road corners or sides)
+                const roadPos = this.getSafeRoadSpawnPosition();
+                return {
+                    x: roadPos.x + (Math.random() > 0.5 ? 40 : -40),
+                    y: roadPos.y + (Math.random() > 0.5 ? 40 : -40)
+                };
+            }
+
+            addScore(amount) {
+                this.score += amount;
+                document.getElementById('score-text').innerText = String(this.score).padStart(8, '0');
+            }
+
+            triggerWantedProgress(amount) {
+                if (this.wantedLevel >= 5) return;
+                this.wantedProgress += amount;
+                const progressToNextLevel = 100 + (this.wantedLevel * 150);
+                
+                if (this.wantedProgress >= progressToNextLevel) {
+                    this.wantedLevel++;
+                    this.wantedProgress = 0;
+                    showToast(`ระดับดาวหัวขโมยเพิ่มขึ้น! ${this.wantedLevel} ดาว 🔥`);
+                    sfx.playPickUp();
+                    updateHUD(this);
+
+                    // If cop sirens haven't started and wanted level > 0, start them
+                    if (this.wantedLevel === 1) {
+                        sfx.startSirenSound();
+                    }
+                }
+            }
+
+            triggerWasted() {
+                this.isGameOver = true;
+                sfx.playExplosion();
+                sfx.stopEngineSound();
+                sfx.stopSirenSound();
+                document.getElementById('final-score').innerText = this.score;
+                document.getElementById('final-wanted').innerText = `${this.wantedLevel} ดาว`;
+                document.getElementById('gameover-screen').classList.remove('hidden');
+            }
+
+            update(dt) {
+                if (this.isGameOver || !this.isStarted) return;
+
+                // --- SPAWN AUTOMATION LOGIC ---
+                this.spawnPedTimer += dt;
+                this.spawnVehicleTimer += dt;
+                this.spawnCopTimer += dt;
+
+                // Spawn replacement pedestrians
+                if (this.spawnPedTimer > 1.5 && this.pedestrians.length < 50) {
+                    const pos = this.getSafeSidewalkSpawnPosition();
+                    if (pos && distance(pos.x, pos.y, this.player.x, this.player.y) > 400) {
+                        this.pedestrians.push(new Pedestrian(pos.x, pos.y));
+                    }
+                    this.spawnPedTimer = 0;
+                }
+
+                // Spawn replacement civilian vehicles
+                if (this.spawnVehicleTimer > 3.0 && this.vehicles.length < 30) {
+                    const pos = this.getSafeRoadSpawnPosition();
+                    if (pos && distance(pos.x, pos.y, this.player.x, this.player.y) > 500) {
+                        const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#ffffff', '#64748b'];
+                        this.vehicles.push(new Vehicle(pos.x, pos.y, colors[Math.floor(Math.random() * colors.length)], false));
+                    }
+                    this.spawnVehicleTimer = 0;
+                }
+
+                // Spawn chasing cops based on wanted level
+                if (this.wantedLevel > 0 && this.spawnCopTimer > (6.0 - this.wantedLevel)) {
+                    // Cops spawn out of screen view but close enough to pursue
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = 550;
+                    const spawnX = this.player.x + Math.cos(angle) * dist;
+                    const spawnY = this.player.y + Math.sin(angle) * dist;
+
+                    if (spawnX > 0 && spawnX < MAP_WIDTH && spawnY > 0 && spawnY < MAP_HEIGHT) {
+                        // High wanted levels can spawn police in squad cars!
+                        const shouldSpawnCar = this.wantedLevel >= 2 && Math.random() < 0.6;
+                        if (shouldSpawnCar) {
+                            const copCar = new Vehicle(spawnX, spawnY, '#ffffff', true);
+                            this.vehicles.push(copCar);
+                        } else {
+                            this.pedestrians.push(new Pedestrian(spawnX, spawnY, TYPE_COP));
+                        }
+                    }
+                    this.spawnCopTimer = 0;
+                }
+
+                // Update Camera to follow player (or current car player is in)
+                const targetCamX = this.player.inCar ? this.player.car.x : this.player.x;
+                const targetCamY = this.player.inCar ? this.player.car.y : this.player.y;
+                
+                // Slow interpolation camera movement for arcade feel
+                this.camera.x += (targetCamX - SCREEN_WIDTH / 2 - this.camera.x) * 0.1;
+                this.camera.y += (targetCamY - SCREEN_HEIGHT / 2 - this.camera.y) * 0.1;
+
+                // Keep camera inside city borders
+                this.camera.x = Math.max(0, Math.min(MAP_WIDTH - SCREEN_WIDTH, this.camera.x));
+                this.camera.y = Math.max(0, Math.min(MAP_HEIGHT - SCREEN_HEIGHT, this.camera.y));
+
+                // --- 4. ENGINE ENTITY TICK & UPDATE LOOPS ---
+                
+                // Update Player
+                this.player.update(this, dt);
+
+                // Update Vehicles
+                for (let i = this.vehicles.length - 1; i >= 0; i--) {
+                    const car = this.vehicles[i];
+                    car.update(this, dt);
+                    
+                    // Cleanup distant cars if unnecessary
+                    if (!car.isCop && !car.hasPlayer && distance(car.x, car.y, this.player.x, this.player.y) > 1200) {
+                        this.vehicles.splice(i, 1);
+                    }
+                }
+
+                // Update Pedestrians
+                for (let i = this.pedestrians.length - 1; i >= 0; i--) {
+                    const ped = this.pedestrians[i];
+                    ped.update(this, dt);
+
+                    // Deletion of far away peds
+                    if (ped.type !== TYPE_COP && distance(ped.x, ped.y, this.player.x, this.player.y) > 1000) {
+                        this.pedestrians.splice(i, 1);
+                    }
+                }
+
+                // Update Bullets
+                for (let i = this.bullets.length - 1; i >= 0; i--) {
+                    const b = this.bullets[i];
+                    b.x += b.vx * b.speed * dt * 60;
+                    b.y += b.vy * b.speed * dt * 60;
+                    b.life -= dt;
+
+                    // Building Bullet Collisions
+                    let hitBuilding = false;
+                    for (const bld of this.buildings) {
+                        if (b.x >= bld.x && b.x <= bld.x + bld.w && b.y >= bld.y && b.y <= bld.y + bld.h) {
+                            hitBuilding = true;
+                            // Dust puff
+                            createExplosionParticles(this, b.x, b.y, '#94a3b8', 3);
+                            break;
+                        }
+                    }
+
+                    if (hitBuilding || b.life <= 0) {
+                        this.bullets.splice(i, 1);
+                        continue;
+                    }
+
+                    // Entity Bullet hits Check
+                    let hitTarget = false;
+                    
+                    // 1. If player fired bullet, check targets (civilians, cops, cars)
+                    if (b.owner === TYPE_PLAYER) {
+                        // Check peds & cops
+                        for (let pIdx = this.pedestrians.length - 1; pIdx >= 0; pIdx--) {
+                            const ped = this.pedestrians[pIdx];
+                            if (distance(b.x, b.y, ped.x, ped.y) < ped.radius + 2) {
+                                ped.takeDamage(this, b.damage);
+                                hitTarget = true;
+                                break;
+                            }
+                        }
+
+                        if (!hitTarget) {
+                            // Check vehicles
+                            for (let vIdx = this.vehicles.length - 1; vIdx >= 0; vIdx--) {
+                                const v = this.vehicles[vIdx];
+                                if (distance(b.x, b.y, v.x, v.y) < v.collisionRadius) {
+                                    v.takeDamage(this, b.damage);
+                                    hitTarget = true;
+                                    break;
+                                }
+                            }
+                        }
+                    } 
+                    // 2. If police fired bullet, check player (or player's vehicle)
+                    else if (b.owner === TYPE_COP) {
+                        if (this.player.inCar) {
+                            const car = this.player.car;
+                            if (distance(b.x, b.y, car.x, car.y) < car.collisionRadius) {
+                                car.takeDamage(this, b.damage);
+                                hitTarget = true;
+                            }
+                        } else {
+                            if (distance(b.x, b.y, this.player.x, this.player.y) < this.player.radius) {
+                                this.player.takeDamage(this, b.damage);
+                                hitTarget = true;
+                            }
+                        }
+                    }
+
+                    if (hitTarget) {
+                        this.bullets.splice(i, 1);
+                    }
+                }
+
+                // Update Particles
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    const p = this.particles[i];
+                    p.x += p.vx * dt * 60;
+                    p.y += p.vy * dt * 60;
+                    p.life -= dt;
+                    p.alpha = Math.max(0, p.life / p.maxLife);
+                    if (p.life <= 0) {
+                        this.particles.splice(i, 1);
+                    }
+                }
+            }
+
+            draw() {
+                // Clear Frame
+                ctx.fillStyle = '#0f172a'; // Road-gray dark background
+                ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+                ctx.save();
+                // Apply Camera Translation Offset to visualize viewport
+                ctx.translate(-this.camera.x, -this.camera.y);
+
+                // --- 1. DRAW STREET FLOOR / GRIDS ---
+                // We only draw tiles visible inside/close to the camera viewport to conserve system resources
+                const startX = Math.max(0, Math.floor(this.camera.x / TILE_SIZE));
+                const endX = Math.min(CITY_GRID_WIDTH, Math.ceil((this.camera.x + SCREEN_WIDTH) / TILE_SIZE));
+                const startY = Math.max(0, Math.floor(this.camera.y / TILE_SIZE));
+                const endY = Math.min(CITY_GRID_HEIGHT, Math.ceil((this.camera.y + SCREEN_HEIGHT) / TILE_SIZE));
+
+                for (let y = startY; y < endY; y++) {
+                    for (let x = startX; x < endX; x++) {
+                        const px = x * TILE_SIZE;
+                        const py = y * TILE_SIZE;
+
+                        if (this.map[y][x] === 0) {
+                            // Draw Asphalt road tile
+                            ctx.fillStyle = '#1e293b';
+                            ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                            
+                            // Draw Sidewalk edges
+                            ctx.fillStyle = '#475569';
+                            ctx.fillRect(px, py, TILE_SIZE, 6);
+                            ctx.fillRect(px, py + TILE_SIZE - 6, TILE_SIZE, 6);
+                            ctx.fillRect(px, py, 6, TILE_SIZE);
+                            ctx.fillRect(px + TILE_SIZE - 6, py, 6, TILE_SIZE);
+
+                            // Draw Road Center Lane Markings
+                            ctx.fillStyle = '#fef08a'; // Yellow dashed lane
+                            ctx.fillRect(px + TILE_SIZE/2 - 2, py + TILE_SIZE/4, 4, 15);
+                            ctx.fillRect(px + TILE_SIZE/2 - 2, py + TILE_SIZE*3/4, 4, 15);
+                        }
+                    }
+                }
+
+                // --- 2. DRAW DECORATIONS (Trees, crates) ---
+                this.decorations.forEach(dec => {
+                    if (dec.type === 'tree') {
+                        // Tree shadow
+                        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                        ctx.beginPath();
+                        ctx.arc(dec.x + 5, dec.y + 5, dec.radius, 0, Math.PI*2);
+                        ctx.fill();
+                        
+                        // Foliage
+                        ctx.fillStyle = '#047857';
+                        ctx.beginPath();
+                        ctx.arc(dec.x, dec.y, dec.radius, 0, Math.PI*2);
+                        ctx.fill();
+                        ctx.fillStyle = '#10b981';
+                        ctx.beginPath();
+                        ctx.arc(dec.x - 3, dec.y - 3, dec.radius - 5, 0, Math.PI*2);
+                        ctx.fill();
+                    } else if (dec.type === 'crate') {
+                        ctx.fillStyle = '#b45309';
+                        ctx.fillRect(dec.x - 8, dec.y - 8, 16, 16);
+                        ctx.strokeStyle = '#78350f';
+                        ctx.lineWidth = 1.5;
+                        ctx.strokeRect(dec.x - 8, dec.y - 8, 16, 16);
+                    }
+                });
+
+                // --- 3. DRAW VEHICLES ---
+                this.vehicles.forEach(car => car.draw(ctx));
+
+                // --- 4. DRAW PEDESTRIANS & COPS ---
+                this.pedestrians.forEach(ped => ped.draw(ctx));
+
+                // --- 5. DRAW PLAYER (if not driving inside a car) ---
+                if (!this.player.inCar) {
+                    this.player.draw(ctx);
+                }
+
+                // --- 6. DRAW BULLETS ---
+                this.bullets.forEach(b => {
+                    ctx.fillStyle = b.color;
+                    ctx.shadowColor = b.color;
+                    ctx.shadowBlur = 8;
+                    ctx.beginPath();
+                    ctx.arc(b.x, b.y, b.isMelee ? 12 : 3, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0; // reset
+                });
+
+                // --- 7. DRAW PARTICLES (Smoke, explosion, fire) ---
+                this.particles.forEach(p => {
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.alpha;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+                    ctx.fill();
+                });
+                ctx.globalAlpha = 1.0; // reset
+
+                // --- 8. DRAW 3D SIMULATION OVERLAY FOR BUILDINGS ---
+                // Drawing pseudo-3D building block projection shadows to create top-down GTA2 retro height depth!
+                for (let y = startY; y < endY; y++) {
+                    for (let x = startX; x < endX; x++) {
+                        if (this.map[y][x] === 1) {
+                            const px = x * TILE_SIZE;
+                            const py = y * TILE_SIZE;
+                            const height = 24; // Shadow offset height
+                            
+                            // Draw simulated perspective side walls of block structure
+                            ctx.fillStyle = '#020617';
+                            ctx.beginPath();
+                            ctx.moveTo(px, py);
+                            ctx.lineTo(px - height * 0.4, py - height * 0.4);
+                            ctx.lineTo(px + TILE_SIZE - height * 0.4, py - height * 0.4);
+                            ctx.lineTo(px + TILE_SIZE, py);
+                            ctx.closePath();
+                            ctx.fill();
+
+                            ctx.beginPath();
+                            ctx.moveTo(px + TILE_SIZE, py);
+                            ctx.lineTo(px + TILE_SIZE - height * 0.4, py - height * 0.4);
+                            ctx.lineTo(px + TILE_SIZE - height * 0.4, py + TILE_SIZE - height * 0.4);
+                            ctx.lineTo(px + TILE_SIZE, py + TILE_SIZE);
+                            ctx.closePath();
+                            ctx.fill();
+
+                            // Top Roof plate
+                            ctx.fillStyle = '#1e293b';
+                            ctx.fillRect(px - height * 0.4, py - height * 0.4, TILE_SIZE, TILE_SIZE);
+                            ctx.strokeStyle = '#334155';
+                            ctx.lineWidth = 2;
+                            ctx.strokeRect(px - height * 0.4, py - height * 0.4, TILE_SIZE, TILE_SIZE);
+
+                            // Draw subtle neon grid windows on roofs
+                            ctx.fillStyle = '#3b82f6';
+                            ctx.globalAlpha = 0.25;
+                            ctx.fillRect(px - height * 0.4 + 10, py - height * 0.4 + 10, 30, 30);
+                            ctx.fillRect(px - height * 0.4 + TILE_SIZE - 40, py - height * 0.4 + 10, 30, 30);
+                            ctx.fillRect(px - height * 0.4 + 10, py - height * 0.4 + TILE_SIZE - 40, 30, 30);
+                            ctx.fillRect(px - height * 0.4 + TILE_SIZE - 40, py - height * 0.4 + TILE_SIZE - 40, 30, 30);
+                            ctx.globalAlpha = 1.0;
+                        }
+                    }
+                }
+
+                ctx.restore(); // Restore normal camera transform
+            }
+        }
+
+
+        // --- 4. INDIVIDUAL ENTITY CONTROLS & DESIGNS ---
+
+        class Player {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 16;
+                this.angle = 0;
+                this.speed = 4;
+                this.hp = 100;
+                this.armor = 100;
+                this.inCar = false;
+                this.car = null; // Vehicle reference if driving
+
+                // Weapons
+                this.currentWeaponIndex = 0;
+                this.unlockedWeapons = [0, 1, 2, 3]; // unlocked indices
+                this.shootCooldown = 0;
+            }
+
+            takeDamage(game, amount) {
+                if (this.hp <= 0) return;
+                
+                // Armor absorp half damage
+                if (this.armor > 0) {
+                    const absorbed = Math.floor(amount * 0.5);
+                    this.armor -= absorbed;
+                    this.hp -= (amount - absorbed);
+                } else {
+                    this.hp -= amount;
+                }
+
+                this.hp = Math.max(0, this.hp);
+                this.armor = Math.max(0, this.armor);
+                
+                // Blood particles
+                createExplosionParticles(game, this.x, this.y, '#ef4444', 5);
+                updateHUD(game);
+
+                if (this.hp <= 0) {
+                    game.triggerWasted();
+                }
+            }
+
+            update(game, dt) {
+                if (this.inCar) {
+                    // Update location synced with driving car
+                    this.x = this.car.x;
+                    this.y = this.car.y;
+                    this.angle = this.car.angle;
+                    return;
+                }
+
+                if (this.shootCooldown > 0) {
+                    this.shootCooldown -= dt * 1000;
+                }
+
+                // Keyboard input movement vectors
+                let moveX = 0;
+                let moveY = 0;
+
+                if (keys['w'] || keys['ArrowUp']) moveY -= 1;
+                if (keys['s'] || keys['ArrowDown']) moveY += 1;
+                if (keys['a'] || keys['ArrowLeft']) moveX -= 1;
+                if (keys['d'] || keys['ArrowRight']) moveX += 1;
+
+                // Handle mobile touch joystick vector
+                if (touchJoystickActive) {
+                    moveX = touchJoystickVector.x;
+                    moveY = touchJoystickVector.y;
+                }
+
+                // Apply movement normalized to scale speed
+                if (moveX !== 0 || moveY !== 0) {
+                    const length = Math.sqrt(moveX * moveX + moveY * moveY);
+                    const nx = moveX / length;
+                    const ny = moveY / length;
+
+                    const newX = this.x + nx * this.speed * dt * 60;
+                    const newY = this.y + ny * this.speed * dt * 60;
+
+                    // Obstacle Collision Checks (Buildings & Screen limits)
+                    if (this.checkBuildingCollision(game, newX, this.y)) {
+                        // Slide on sliding walls
+                    } else {
+                        this.x = newX;
+                    }
+
+                    if (this.checkBuildingCollision(game, this.x, newY)) {
+                        // Slide
+                    } else {
+                        this.y = newY;
+                    }
+
+                    // Look angle update based on moving direction (unless manual mouse aiming)
+                    if (!touchJoystickActive) {
+                        this.angle = Math.atan2(ny, nx);
+                    }
+                }
+
+                // Aiming angle towards Cursor on Desktop
+                if (!touchJoystickActive && mouseX !== 0 && mouseY !== 0) {
+                    const worldMouseX = mouseX + game.camera.x;
+                    const worldMouseY = mouseY + game.camera.y;
+                    this.angle = Math.atan2(worldMouseY - this.y, worldMouseX - this.x);
+                }
+
+                // Force player bounding box inside borders
+                this.x = Math.max(this.radius + TILE_SIZE, Math.min(MAP_WIDTH - this.radius - TILE_SIZE, this.x));
+                this.y = Math.max(this.radius + TILE_SIZE, Math.min(MAP_HEIGHT - this.radius - TILE_SIZE, this.y));
+
+                // Shoot Actions
+                if ((mouseClicked || touchShootActive) && this.shootCooldown <= 0) {
+                    this.shoot(game);
+                }
+            }
+
+            shoot(game) {
+                const weapon = WEAPONS[this.unlockedWeapons[this.currentWeaponIndex]];
+                this.shootCooldown = weapon.fireRate;
+
+                if (!weapon.isMelee && weapon.ammo <= 0) {
+                    showToast("กระสุนหมด! เลือกอาวุธอื่น");
+                    return;
+                }
+
+                sfx.playShoot();
+
+                const bx = this.x + Math.cos(this.angle) * 18;
+                const by = this.y + Math.sin(this.angle) * 18;
+
+                if (weapon.isMelee) {
+                    // Spawn short lived melee collision bullet arc
+                    game.bullets.push({
+                        x: bx,
+                        y: by,
+                        vx: Math.cos(this.angle),
+                        vy: Math.sin(this.angle),
+                        speed: 3,
+                        damage: weapon.damage,
+                        life: 0.1,
+                        color: 'rgba(239, 68, 68, 0.4)',
+                        owner: TYPE_PLAYER,
+                        isMelee: true
+                    });
+
+                    // Trigger alert if civilian is hit by melee punch
+                    game.triggerWantedProgress(5);
+                } else {
+                    // Firearms
+                    weapon.ammo--;
+                    updateHUD(game);
+
+                    if (weapon.pellets) {
+                        // Shotgun spray (Multiple spreading projectiles)
+                        for (let i = 0; i < weapon.pellets; i++) {
+                            const spreadAngle = this.angle + (Math.random() - 0.5) * 0.25;
+                            game.bullets.push({
+                                x: bx,
+                                y: by,
+                                vx: Math.cos(spreadAngle),
+                                vy: Math.sin(spreadAngle),
+                                speed: weapon.speed + Math.random()*2,
+                                damage: weapon.damage,
+                                life: 0.4,
+                                color: weapon.color,
+                                owner: TYPE_PLAYER,
+                                isMelee: false
+                            });
+                        }
+                    } else {
+                        // Standard bullets (Pistol, SMG)
+                        game.bullets.push({
+                            x: bx,
+                            y: by,
+                            vx: Math.cos(this.angle),
+                            vy: Math.sin(this.angle),
+                            speed: weapon.speed,
+                            damage: weapon.damage,
+                            life: 1.0,
+                            color: weapon.color,
+                            owner: TYPE_PLAYER,
+                            isMelee: false
+                        });
+                    }
+
+                    // Sound gun fire sparks
+                    createExplosionParticles(game, bx, by, '#fdba74', 3);
+                    game.triggerWantedProgress(25); // Shooting increases police attention
+                }
+            }
+
+            checkBuildingCollision(game, px, py) {
+                for (const bld of game.buildings) {
+                    if (px + this.radius > bld.x && px - this.radius < bld.x + bld.w &&
+                        py + this.radius > bld.y && py - this.radius < bld.y + bld.h) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            draw(ctx) {
+                // Character Base Shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.4)';
+                ctx.beginPath();
+                ctx.arc(this.x + 2, this.y + 2, this.radius, 0, Math.PI*2);
+                ctx.fill();
+
+                // Rotate rendering for facing look direction
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+
+                // Draw Hands holding weapon
+                ctx.fillStyle = '#fbcfe8'; // Skin color
+                ctx.beginPath();
+                ctx.arc(10, -8, 4, 0, Math.PI*2);
+                ctx.arc(10, 8, 4, 0, Math.PI*2);
+                ctx.fill();
+
+                // Draw Weapon silhouette
+                const weapon = WEAPONS[this.unlockedWeapons[this.currentWeaponIndex]];
+                if (!weapon.isMelee) {
+                    ctx.fillStyle = '#475569';
+                    ctx.fillRect(10, -2, 12, 4); // Barrel
+                }
+
+                // Character Torso Body
+                ctx.fillStyle = '#ef4444'; // Orange-red neon gang jacket
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI*2);
+                ctx.fill();
+
+                // Cap (Classic GTA retro hair/cap visual)
+                ctx.fillStyle = '#f59e0b';
+                ctx.beginPath();
+                ctx.arc(-2, 0, this.radius - 5, 0, Math.PI*2);
+                ctx.fill();
+
+                // Head/Nose facing forward
+                ctx.fillStyle = '#fbcfe8';
+                ctx.beginPath();
+                ctx.arc(this.radius - 4, 0, 3, 0, Math.PI*2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+
+        // --- 5. VEHICLE ENGINE PHYSICS ---
+
+        class Vehicle {
+            constructor(x, y, color, isCop = false) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.isCop = isCop;
+                
+                this.width = 44;
+                this.length = 80;
+                this.collisionRadius = 38;
+
+                this.angle = Math.random() * Math.PI * 2;
+                this.speed = 0;
+                this.maxSpeed = isCop ? 8.5 : 6.5;
+                this.acceleration = 0.15;
+                this.friction = 0.05;
+                this.steeringSensitivity = 0.055;
+
+                this.hp = isCop ? 180 : 100;
+                this.maxHp = this.hp;
+                this.hasPlayer = false;
+
+                // Simple driving AI destination coords for civilian roaming
+                this.aiTargetX = null;
+                this.aiTargetY = null;
+                this.copShootCooldown = 0;
+            }
+
+            takeDamage(game, amount) {
+                if (this.hp <= 0) return;
+                this.hp -= amount;
+                
+                // Smoke particles on damage
+                if (this.hp < this.maxHp * 0.4) {
+                    createExplosionParticles(game, this.x, this.y, '#4b5563', 2);
+                }
+
+                if (this.hp <= 0) {
+                    this.explode(game);
+                }
+            }
+
+            explode(game) {
+                game.addScore(this.isCop ? 500 : 100);
+                sfx.playExplosion();
+                createExplosionParticles(game, this.x, this.y, '#f97316', 30); // Fire
+                createExplosionParticles(game, this.x, this.y, '#1e293b', 15); // Smoke
+
+                // Kill player if inside
+                if (this.hasPlayer) {
+                    game.player.inCar = false;
+                    game.player.takeDamage(game, 150);
+                }
+
+                // Delete car
+                const idx = game.vehicles.indexOf(this);
+                if (idx !== -1) game.vehicles.splice(idx, 1);
+            }
+
+            update(game, dt) {
+                if (this.hasPlayer) {
+                    // Update engine audio pitch frequency
+                    const ratio = Math.abs(this.speed) / this.maxSpeed;
+                    sfx.setEnginePitch(ratio);
+
+                    // --- PLAYER INPUT VEHICLE DRIVING CONTROLS ---
+                    let accelerating = false;
+                    let reversing = false;
+
+                    if (keys['w'] || keys['ArrowUp'] || (touchJoystickActive && touchJoystickVector.y < -0.2)) {
+                        this.speed += this.acceleration * dt * 60;
+                        accelerating = true;
+                    }
+                    if (keys['s'] || keys['ArrowDown'] || (touchJoystickActive && touchJoystickVector.y > 0.2)) {
+                        this.speed -= (this.acceleration * 0.6) * dt * 60;
+                        reversing = true;
+                    }
+
+                    // Apply deceleration/friction if idle
+                    if (!accelerating && !reversing) {
+                        this.speed *= (1 - this.friction * dt * 60);
+                    }
+
+                    // Steering controls (Cannot turn if completely static)
+                    if (Math.abs(this.speed) > 0.1) {
+                        let turnDir = 0;
+                        if (keys['a'] || keys['ArrowLeft'] || (touchJoystickActive && touchJoystickVector.x < -0.2)) {
+                            turnDir = -1;
+                        }
+                        if (keys['d'] || keys['ArrowRight'] || (touchJoystickActive && touchJoystickVector.x > 0.2)) {
+                            turnDir = 1;
+                        }
+
+                        // Spacebar Handbrake drifting effect
+                        const curTurnSensitivity = (keys[' '] ? this.steeringSensitivity * 1.6 : this.steeringSensitivity);
+                        
+                        // Scale turning to be harder at high speed but realistic
+                        const dirMult = this.speed > 0 ? 1 : -1;
+                        this.angle += turnDir * curTurnSensitivity * dirMult * dt * 60;
+
+                        // Spawn tire skid trails
+                        if (keys[' '] && Math.abs(this.speed) > 3) {
+                            createExplosionParticles(game, this.x, this.y, '#000000', 1);
+                        }
+                    }
+
+                    // Speed limits
+                    this.speed = Math.max(-this.maxSpeed * 0.4, Math.min(this.maxSpeed, this.speed));
+                } else if (this.isCop) {
+                    // --- POLICE CHASE AI ---
+                    // Pursue player vigorously
+                    const distToPlayer = distance(this.x, this.y, game.player.x, game.player.y);
+                    const angleToPlayer = Math.atan2(game.player.y - this.y, game.player.x - this.x);
+
+                    // Steer towards target look direction
+                    this.angle = lerpAngle(this.angle, angleToPlayer, this.steeringSensitivity * dt * 60);
+                    
+                    // Accelerate if some distance away
+                    if (distToPlayer > 80) {
+                        this.speed += this.acceleration * dt * 60;
+                    } else {
+                        // Crash/Ram player on foot!
+                        if (!game.player.inCar) {
+                            game.player.takeDamage(game, 15);
+                            this.speed *= 0.3; // bounce back
+                        }
+                    }
+                    this.speed = Math.max(0, Math.min(this.maxSpeed, this.speed));
+
+                    // Cop shootout from window of patrol car
+                    if (this.copShootCooldown > 0) {
+                        this.copShootCooldown -= dt;
+                    } else if (distToPlayer < 250) {
+                        sfx.playShoot();
+                        game.bullets.push({
+                            x: this.x + Math.cos(this.angle) * 20,
+                            y: this.y + Math.sin(this.angle) * 20,
+                            vx: Math.cos(this.angle),
+                            vy: Math.sin(this.angle),
+                            speed: 13,
+                            damage: 8,
+                            life: 1.0,
+                            color: '#ef4444',
+                            owner: TYPE_COP,
+                            isMelee: false
+                        });
+                        this.copShootCooldown = 1.2; // fire rate limit
+                    }
+                } else {
+                    // --- CIVILIAN AI ROAM DRIVING ---
+                    if (this.aiTargetX === null || distance(this.x, this.y, this.aiTargetX, this.aiTargetY) < 100) {
+                        // Select new random road tile
+                        const pos = game.getSafeRoadSpawnPosition();
+                        this.aiTargetX = pos.x;
+                        this.aiTargetY = pos.y;
+                    }
+
+                    const angleToDest = Math.atan2(this.aiTargetY - this.y, this.aiTargetX - this.x);
+                    this.angle = lerpAngle(this.angle, angleToDest, 0.03 * dt * 60);
+                    this.speed = Math.min(this.speed + 0.05 * dt * 60, this.maxSpeed * 0.5);
+
+                    // Check if about to crash into player vehicle and honk/brake
+                    if (distance(this.x, this.y, game.player.x, game.player.y) < 120) {
+                        this.speed *= 0.8; // decelerate safely
+                    }
+                }
+
+                // Update vehicle positions
+                const dx = Math.cos(this.angle) * this.speed * dt * 60;
+                const dy = Math.sin(this.angle) * this.speed * dt * 60;
+
+                const newX = this.x + dx;
+                const newY = this.y + dy;
+
+                // Building Collision check for cars
+                if (this.checkBuildingCollision(game, newX, this.y)) {
+                    this.speed = -this.speed * 0.4; // rebound crash
+                    if (Math.abs(this.speed) > 1.5) {
+                        sfx.playCarCrash();
+                        this.takeDamage(game, 10);
+                    }
+                } else {
+                    this.x = newX;
+                }
+
+                if (this.checkBuildingCollision(game, this.x, newY)) {
+                    this.speed = -this.speed * 0.4;
+                    if (Math.abs(this.speed) > 1.5) {
+                        sfx.playCarCrash();
+                        this.takeDamage(game, 10);
+                    }
+                } else {
+                    this.y = newY;
+                }
+
+                // Boundaries collision
+                this.x = Math.max(TILE_SIZE + this.width, Math.min(MAP_WIDTH - TILE_SIZE - this.width, this.x));
+                this.y = Math.max(TILE_SIZE + this.width, Math.min(MAP_HEIGHT - TILE_SIZE - this.width, this.y));
+
+                // Crash collisions against pedestrians
+                game.pedestrians.forEach(ped => {
+                    if (distance(this.x, this.y, ped.x, ped.y) < this.collisionRadius + ped.radius) {
+                        if (Math.abs(this.speed) > 1.5) {
+                            ped.takeDamage(game, 100); // Roadkill instakill
+                            this.speed *= 0.85; // slow down
+                            if (this.hasPlayer) {
+                                game.triggerWantedProgress(50); // running people over increases wanted level fast!
+                            }
+                        }
+                    }
+                });
+
+                // Car colliding with other cars
+                game.vehicles.forEach(otherCar => {
+                    if (otherCar !== this) {
+                        if (distance(this.x, this.y, otherCar.x, otherCar.y) < this.collisionRadius * 1.5) {
+                            // Rebound physics simulation
+                            const temp = this.speed;
+                            this.speed = -otherCar.speed * 0.5;
+                            otherCar.speed = -temp * 0.5;
+                            
+                            if (Math.abs(temp) > 2) {
+                                sfx.playCarCrash();
+                                this.takeDamage(game, 5);
+                                otherCar.takeDamage(game, 5);
+                            }
+                        }
+                    }
+                });
+            }
+
+            checkBuildingCollision(game, px, py) {
+                // Approximate bounding boxes of buildings
+                for (const bld of game.buildings) {
+                    if (px + this.width/2 > bld.x && px - this.width/2 < bld.x + bld.w &&
+                        py + this.length/2 > bld.y && py - this.length/2 < bld.y + bld.h) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            draw(ctx) {
+                // Vehicle Base Shadow
+                ctx.save();
+                ctx.translate(this.x + 3, this.y + 3);
+                ctx.rotate(this.angle);
+                ctx.fillStyle = 'rgba(0,0,0,0.35)';
+                ctx.fillRect(-this.width/2, -this.length/2, this.width, this.length);
+                ctx.restore();
+
+                // Rotate vehicle draw context
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+
+                // Tires
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(-this.width/2 - 2, -this.length/2 + 8, 4, 15); // Top left
+                ctx.fillRect(this.width/2 - 2, -this.length/2 + 8, 4, 15); // Top right
+                ctx.fillRect(-this.width/2 - 2, this.length/2 - 23, 4, 15); // Bottom left
+                ctx.fillRect(this.width/2 - 2, this.length/2 - 23, 4, 15); // Bottom right
+
+                // Car Chassis Body
+                ctx.fillStyle = this.color;
+                ctx.fillRect(-this.width/2, -this.length/2, this.width, this.length);
+
+                // Roof Cabin
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(-this.width/2 + 4, -15, this.width - 8, 38);
+
+                // Windshield and Windows
+                ctx.fillStyle = '#93c5fd'; // Glass color
+                ctx.fillRect(-this.width/2 + 6, -12, this.width - 12, 6); // Windshield
+                ctx.fillRect(-this.width/2 + 6, 18, this.width - 12, 4); // Rear glass
+
+                // Siren Lights (Police cars)
+                if (this.isCop) {
+                    const flashingBlue = Math.floor(Date.now() / 150) % 2 === 0;
+                    ctx.fillStyle = flashingBlue ? '#3b82f6' : '#ef4444';
+                    ctx.fillRect(-8, -2, 16, 5);
+                }
+
+                // Headlights
+                ctx.fillStyle = '#fef08a';
+                ctx.fillRect(-this.width/2 + 4, -this.length/2, 6, 4);
+                ctx.fillRect(this.width/2 - 10, -this.length/2, 6, 4);
+
+                // Tail brake lights (Active if player is reversing/stopping)
+                const isBraking = this.hasPlayer && (keys['s'] || keys['ArrowDown']);
+                ctx.fillStyle = isBraking ? '#ef4444' : '#b91c1c';
+                ctx.fillRect(-this.width/2 + 4, this.length/2 - 4, 6, 4);
+                ctx.fillRect(this.width/2 - 10, this.length/2 - 4, 6, 4);
+
+                // Indicator if current player is driving this car
+                if (this.hasPlayer) {
+                    ctx.fillStyle = 'rgba(34, 197, 94, 0.4)';
+                    ctx.strokeStyle = '#22c55e';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 18, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            }
+        }
+
+
+        // --- 6. PEDESTRIAN & POLICE AI ---
+
+        class Pedestrian {
+            constructor(x, y, type = TYPE_PED) {
+                this.x = x;
+                this.y = y;
+                this.type = type; // TYPE_PED or TYPE_COP
+                
+                this.radius = 12;
+                this.angle = Math.random() * Math.PI * 2;
+                this.speed = type === TYPE_COP ? 2.8 : 1.8;
+                this.hp = type === TYPE_COP ? 50 : 25;
+
+                // Wander AI stats
+                this.wanderTimer = 0;
+                this.isFleeing = false;
+                this.shootCooldown = 0;
+            }
+
+            takeDamage(game, amount) {
+                if (this.hp <= 0) return;
+                this.hp -= amount;
+                
+                sfx.playPickUp();
+                createExplosionParticles(game, this.x, this.y, '#ef4444', 6);
+
+                // Civilian flees when attacked
+                if (this.type === TYPE_PED) {
+                    this.isFleeing = true;
+                    this.speed = 3.5; // sprint
+                }
+
+                if (this.hp <= 0) {
+                    this.die(game);
+                }
+            }
+
+            die(game) {
+                // Reward cash to player
+                game.addScore(this.type === TYPE_COP ? 100 : 50);
+
+                // Occasional weapon pickups
+                if (this.type === TYPE_COP && Math.random() < 0.4) {
+                    // Give weapon ammo
+                    const rWep = Math.floor(Math.random() * 3) + 1; // 1 to 3
+                    const wp = WEAPONS[rWep];
+                    wp.ammo = Math.min(wp.maxAmmo, wp.ammo + 15);
+                    showToast(`เก็บกล่องกระสุน! +15 ${wp.name} 💥`);
+                    sfx.playPickUp();
+                }
+
+                createExplosionParticles(game, this.x, this.y, '#dc2626', 12); // Splat
+
+                // Delete ped from game roster
+                const idx = game.pedestrians.indexOf(this);
+                if (idx !== -1) game.pedestrians.splice(idx, 1);
+            }
+
+            update(game, dt) {
+                if (this.shootCooldown > 0) {
+                    this.shootCooldown -= dt;
+                }
+
+                if (this.type === TYPE_COP) {
+                    // --- COP FOOT PATROL CHASE ---
+                    const distToPlayer = distance(this.x, this.y, game.player.x, game.player.y);
+                    
+                    // Face player
+                    this.angle = Math.atan2(game.player.y - this.y, game.player.x - this.x);
+
+                    if (distToPlayer > 180) {
+                        // Move closer
+                        this.x += Math.cos(this.angle) * this.speed * dt * 60;
+                        this.y += Math.sin(this.angle) * this.speed * dt * 60;
+                    } else if (this.shootCooldown <= 0) {
+                        // Fire pistol bullet at player!
+                        sfx.playShoot();
+                        game.bullets.push({
+                            x: this.x + Math.cos(this.angle) * 12,
+                            y: this.y + Math.sin(this.angle) * 12,
+                            vx: Math.cos(this.angle),
+                            vy: Math.sin(this.angle),
+                            speed: 12,
+                            damage: 5,
+                            life: 1.0,
+                            color: '#ef4444',
+                            owner: TYPE_COP,
+                            isMelee: false
+                        });
+                        this.shootCooldown = 1.0;
+                    }
+                } else {
+                    // --- CIVILIAN WANDER/FLEE AI ---
+                    if (this.isFleeing) {
+                        // Flee away from player position
+                        const runAngle = Math.atan2(this.y - game.player.y, this.x - game.player.x);
+                        this.angle = runAngle;
+                        
+                        this.x += Math.cos(this.angle) * this.speed * dt * 60;
+                        this.y += Math.sin(this.angle) * this.speed * dt * 60;
+
+                        // Stop fleeing after some distance
+                        if (distance(this.x, this.y, game.player.x, game.player.y) > 400) {
+                            this.isFleeing = false;
+                            this.speed = 1.8;
+                        }
+                    } else {
+                        // Simple random path walking wanderer
+                        this.wanderTimer -= dt;
+                        if (this.wanderTimer <= 0) {
+                            this.angle = Math.random() * Math.PI * 2;
+                            this.wanderTimer = 2.0 + Math.random() * 3.0; // seconds before turn
+                        }
+
+                        this.x += Math.cos(this.angle) * this.speed * dt * 60;
+                        this.y += Math.sin(this.angle) * this.speed * dt * 60;
+                    }
+                }
+
+                // Push and slide colliding on walls
+                this.checkWallCollisions(game);
+            }
+
+            checkWallCollisions(game) {
+                // Ensure pedestrian slides along buildings instead of entering them
+                for (const bld of game.buildings) {
+                    if (this.x + this.radius > bld.x && this.x - this.radius < bld.x + bld.w &&
+                        this.y + this.radius > bld.y && this.y - this.radius < bld.y + bld.h) {
+                        
+                        // Simple boundary pushback logic
+                        const distLeft = Math.abs((this.x + this.radius) - bld.x);
+                        const distRight = Math.abs((this.x - this.radius) - (bld.x + bld.w));
+                        const distTop = Math.abs((this.y + this.radius) - bld.y);
+                        const distBottom = Math.abs((this.y - this.radius) - (bld.y + bld.h));
+
+                        const minDist = Math.min(distLeft, distRight, distTop, distBottom);
+                        if (minDist === distLeft) this.x -= 2;
+                        else if (minDist === distRight) this.x += 2;
+                        else if (minDist === distTop) this.y -= 2;
+                        else if (minDist === distBottom) this.y += 2;
+                    }
+                }
+
+                // Contain inside city borders
+                this.x = Math.max(TILE_SIZE + this.radius, Math.min(MAP_WIDTH - TILE_SIZE - this.radius, this.x));
+                this.y = Math.max(TILE_SIZE + this.radius, Math.min(MAP_HEIGHT - TILE_SIZE - this.radius, this.y));
+            }
+
+            draw(ctx) {
+                // Shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.beginPath();
+                ctx.arc(this.x + 2, this.y + 2, this.radius, 0, Math.PI*2);
+                ctx.fill();
+
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+
+                // Body torso
+                ctx.fillStyle = this.type === TYPE_COP ? '#1d4ed8' : '#38bdf8'; // Blue for cops, sky-blue for civs
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI*2);
+                ctx.fill();
+
+                // Head/Hair cap
+                ctx.fillStyle = this.type === TYPE_COP ? '#1e293b' : '#a8a29e'; // Cop cap / Hair
+                ctx.beginPath();
+                ctx.arc(-2, 0, this.radius - 4, 0, Math.PI*2);
+                ctx.fill();
+
+                // Nose direction indicator
+                ctx.fillStyle = '#fbcfe8';
+                ctx.beginPath();
+                ctx.arc(this.radius - 2, 0, 2.5, 0, Math.PI*2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+
+        // --- 7. PARTICLE SYSTEM CREATION ---
+
+        function createExplosionParticles(game, x, y, color, count) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 1.0 + Math.random() * 4.0;
+                const life = 0.4 + Math.random() * 0.6; // duration
+                game.particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    color: color,
+                    size: 2.0 + Math.random() * 5.5,
+                    life: life,
+                    maxLife: life,
+                    alpha: 1.0
+                });
+            }
+        }
+
+
+        // --- 8. UTILITY HELPER MATH FUNCTIONS ---
+
+        function distance(x1, y1, x2, y2) {
+            return Math.sqrt((x2 - x1)**2 + (y2 - y1)**2);
+        }
+
+        // Linear interpolation for smooth angle transition (avoids snappy/jittery turns)
+        function lerpAngle(current, target, rate) {
+            let diff = target - current;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            return current + diff * rate;
+        }
+
+        // Update HTML Headers and Bars dynamically
+        function updateHUD(game) {
+            document.getElementById('hp-bar').style.width = `${game.player.hp}%`;
+            document.getElementById('hp-text').innerText = game.player.hp;
+            document.getElementById('armor-bar').style.width = `${game.player.armor}%`;
+            document.getElementById('armor-text').innerText = game.player.armor;
+
+            // Stars
+            const wantedLevel = game.wantedLevel;
+            const starsContainer = document.getElementById('wanted-stars');
+            starsContainer.innerHTML = '';
+            for (let i = 1; i <= 5; i++) {
+                const star = document.createElement('i');
+                if (i <= wantedLevel) {
+                    star.className = "fas fa-star text-yellow-400 drop-shadow-[0_0_5px_rgba(250,204,21,0.6)]";
+                } else {
+                    star.className = "far fa-star text-slate-700";
+                }
+                starsContainer.appendChild(star);
+            }
+
+            // Weapon
+            const activeWep = WEAPONS[game.player.unlockedWeapons[game.player.currentWeaponIndex]];
+            document.getElementById('weapon-icon').innerHTML = `<i class="fas ${activeWep.icon}"></i>`;
+            document.getElementById('weapon-name').innerText = activeWep.name;
+            document.getElementById('weapon-name').style.color = activeWep.color;
+            if (activeWep.isMelee) {
+                document.getElementById('ammo-text').innerText = "∞";
+            } else {
+                document.getElementById('ammo-text').innerText = `${activeWep.ammo}/${activeWep.maxAmmo}`;
+            }
+        }
+
+        // Floating Event Toast message
+        function showToast(msg) {
+            const toast = document.getElementById('game-toast');
+            toast.innerText = msg;
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 2500);
+        }
+
+
+        // --- 9. INPUT & KEYBOARD EVENTS CONTROL SYSTEM ---
+
+        const keys = {};
+        let mouseX = 0;
+        let mouseY = 0;
+        let mouseClicked = false;
+
+        window.addEventListener('keydown', e => {
+            keys[e.key.toLowerCase()] = true;
+            
+            // F key or Enter Hijacks nearby Vehicle!
+            if (e.key.toLowerCase() === 'f' || e.key === 'Enter') {
+                toggleVehicleEnterExit();
+            }
+
+            // Quick Weapon selection keys (1-4)
+            if (['1', '2', '3', '4'].includes(e.key)) {
+                const index = parseInt(e.key) - 1;
+                if (gameEngine.player.unlockedWeapons[index] !== undefined) {
+                    gameEngine.player.currentWeaponIndex = index;
+                    updateHUD(gameEngine);
+                    sfx.playPickUp();
+                }
+            }
+        });
+
+        window.addEventListener('keyup', e => {
+            keys[e.key.toLowerCase()] = false;
+        });
+
+        // Track local coordinates of mouse relative to game canvas bounds
+        canvas.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = (e.clientX - rect.left) * (SCREEN_WIDTH / rect.width);
+            mouseY = (e.clientY - rect.top) * (SCREEN_HEIGHT / rect.height);
+        });
+
+        canvas.addEventListener('mousedown', e => {
+            if (e.button === 0) mouseClicked = true;
+        });
+
+        window.addEventListener('mouseup', e => {
+            if (e.button === 0) mouseClicked = false;
+        });
+
+
+        // --- 10. MOBILE / TOUCH VIRTUAL CONTROLS IMPLEMENTATION ---
+
+        let touchJoystickActive = false;
+        let touchJoystickVector = { x: 0, y: 0 };
+        let touchShootActive = false;
+
+        const joystickContainer = document.getElementById('touch-joystick-container');
+        const joystickHandle = document.getElementById('touch-joystick-handle');
+        
+        let startTouchX = 0;
+        let startTouchY = 0;
+
+        // Auto-detect mobile devices or touch queries to show touch GUI
+        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+            document.getElementById('mobile-controls').classList.remove('hidden');
+        }
+
+        // Touch Joystick Logic
+        joystickContainer.addEventListener('touchstart', e => {
+            e.preventDefault();
+            const t = e.touches[0];
+            const rect = joystickContainer.getBoundingClientRect();
+            startTouchX = rect.left + rect.width / 2;
+            startTouchY = rect.top + rect.height / 2;
+            touchJoystickActive = true;
+        });
+
+        joystickContainer.addEventListener('touchmove', e => {
+            e.preventDefault();
+            if (!touchJoystickActive) return;
+            const t = e.touches[0];
+            
+            let dx = t.clientX - startTouchX;
+            let dy = t.clientY - startTouchY;
+            const distance = Math.sqrt(dx*dx + dy*dy);
+            const maxRadius = 50; // max handle slide range
+
+            if (distance > maxRadius) {
+                dx = (dx / distance) * maxRadius;
+                dy = (dy / distance) * maxRadius;
+            }
+
+            // Position handle
+            joystickHandle.style.transform = `translate(${dx}px, ${dy}px)`;
+
+            // Normalize vector from -1 to 1 for game movement speed scalar
+            touchJoystickVector.x = dx / maxRadius;
+            touchJoystickVector.y = dy / maxRadius;
+
+            // Rotate Player facing angle matching touch direction
+            if (Math.abs(touchJoystickVector.x) > 0.1 || Math.abs(touchJoystickVector.y) > 0.1) {
+                gameEngine.player.angle = Math.atan2(touchJoystickVector.y, touchJoystickVector.x);
+            }
+        });
+
+        const resetJoystick = () => {
+            touchJoystickActive = false;
+            joystickHandle.style.transform = `translate(0px, 0px)`;
+            touchJoystickVector = { x: 0, y: 0 };
+        };
+
+        joystickContainer.addEventListener('touchend', resetJoystick);
+        joystickContainer.addEventListener('touchcancel', resetJoystick);
+
+        // Shoot Button Touch Trigger
+        const btnTouchShoot = document.getElementById('btn-touch-shoot');
+        btnTouchShoot.addEventListener('touchstart', e => {
+            e.preventDefault();
+            touchShootActive = true;
+        });
+        btnTouchShoot.addEventListener('touchend', () => {
+            touchShootActive = false;
+        });
+
+        // Car Action Button
+        const btnTouchCar = document.getElementById('btn-touch-car');
+        btnTouchCar.addEventListener('click', (e) => {
+            e.preventDefault();
+            toggleVehicleEnterExit();
+        });
+
+        // Switch Weapon Button
+        const btnTouchWeapon = document.getElementById('btn-touch-weapon');
+        btnTouchWeapon.addEventListener('click', (e) => {
+            e.preventDefault();
+            // Loop weapons
+            let nextIndex = gameEngine.player.currentWeaponIndex + 1;
+            if (nextIndex >= gameEngine.player.unlockedWeapons.length) {
+                nextIndex = 0;
+            }
+            gameEngine.player.currentWeaponIndex = nextIndex;
+            updateHUD(gameEngine);
+            sfx.playPickUp();
+        });
+
+
+        // --- 11. ENGINE VEHICLE ENTRY/EXIT INTERACTION ---
+
+        function toggleVehicleEnterExit() {
+            const player = gameEngine.player;
+            if (player.inCar) {
+                // --- EXIT CAR STATE ---
+                const car = player.car;
+                
+                // Position player outside driver seat door
+                player.x = car.x + Math.cos(car.angle + Math.PI/2) * 35;
+                player.y = car.y + Math.sin(car.angle + Math.PI/2) * 35;
+                player.inCar = false;
+                player.car = null;
+                
+                car.hasPlayer = false;
+                car.speed = 0;
+                showToast("ลงจากรถเรียบร้อย 🚶");
+                
+                sfx.stopEngineSound();
+                updateHUD(gameEngine);
+            } else {
+                // --- ENTER/HIJACK CAR STATE ---
+                // Find nearest vehicle within range
+                let nearestCar = null;
+                let minDist = 75; // proximity threshold (pixels)
+
+                for (const car of gameEngine.vehicles) {
+                    const dist = distance(player.x, player.y, car.x, car.y);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearestCar = car;
+                    }
+                }
+
+                if (nearestCar) {
+                    player.inCar = true;
+                    player.car = nearestCar;
+                    nearestCar.hasPlayer = true;
+                    nearestCar.speed = 1.0; // small push start
+                    
+                    showToast(nearestCar.isCop ? "ขโมยรถวิทยุตํารวจสำเร็จ! 🚔" : "ขโมยรถซิ่งสำเร็จ! 🚗");
+                    
+                    // Trigger alarm / wanted stars
+                    gameEngine.triggerWantedProgress(60);
+                    sfx.playPickUp();
+                    sfx.startEngineSound();
+                } else {
+                    showToast("ไม่มีรถอยู่ใกล้ๆ เลย! ❌");
+                }
+            }
+        }
+
+
+        // --- 12. RUNNING THE MAIN GAME LOOP ---
+
+        const gameEngine = new Game();
+
+        function loop(timestamp) {
+            // Delta time math
+            let dt = (timestamp - gameEngine.lastTime) / 1000;
+            if (isNaN(dt) || dt > 0.1) dt = 0.1; // clamp lag spikes
+            gameEngine.lastTime = timestamp;
+
+            // Frame counter (FPS debug log)
+            gameEngine.frameCount++;
+            gameEngine.fpsTimer += dt;
+            if (gameEngine.fpsTimer >= 1.0) {
+                gameEngine.fps = gameEngine.frameCount;
+                document.getElementById('fps-counter').innerText = gameEngine.fps;
+                gameEngine.frameCount = 0;
+                gameEngine.fpsTimer = 0;
+            }
+
+            // Update & Render
+            gameEngine.update(dt);
+            gameEngine.draw();
+
+            requestAnimationFrame(loop);
+        }
+
+
+        // --- 13. BOOTSTRAPPING BUTTON TRiggers ---
+
+        const startScreen = document.getElementById('start-screen');
+        const startBtn = document.getElementById('start-btn');
+        const gameoverScreen = document.getElementById('gameover-screen');
+        const restartBtn = document.getElementById('restart-btn');
+
+        startBtn.addEventListener('click', () => {
+            // Unmute & setup Web Audio context safely
+            sfx.init();
+            if (sfx.ctx && sfx.ctx.state === 'suspended') {
+                sfx.ctx.resume();
+            }
+
+            startScreen.classList.add('hidden');
+            gameEngine.isStarted = true;
+            gameEngine.init();
+            
+            sfx.playPickUp();
+            requestAnimationFrame(loop);
+        });
+
+        restartBtn.addEventListener('click', () => {
+            gameoverScreen.classList.add('hidden');
+            gameEngine.init();
+            sfx.playPickUp();
+        });
+
+    </script>
+</body>
+</html>
