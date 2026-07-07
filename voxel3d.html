@@ -1,0 +1,1507 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Voxel RPG English Quiz - Ultimate Edition</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;800&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Kanit', sans-serif; touch-action: none; user-select: none; }
+        canvas { display: block; }
+        
+        /* Floating Damage Text */
+        .damage-text {
+            position: absolute;
+            font-size: 26px;
+            font-weight: 800;
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+            text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-60px) scale(1.4); opacity: 0; }
+        }
+
+        /* 3D Name Tag */
+        .name-tag {
+            position: absolute;
+            background: rgba(0,0,0,0.75);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            white-space: nowrap;
+            border: 2px solid #fff;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        /* Minimap */
+        #minimap {
+            background-color: rgba(0, 0, 0, 0.5);
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            backdrop-filter: blur(4px);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- UI: Start Screen -->
+    <div id="start-ui" class="absolute inset-0 bg-gradient-to-br from-indigo-950 to-slate-900 z-50 flex flex-col items-center justify-center p-4">
+        <h1 class="text-6xl md:text-8xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-400 to-red-500 mb-6 drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] text-center tracking-wider">VOXEL RPG QUIZ</h1>
+        <p class="text-white text-xl md:text-2xl mb-8 text-center max-w-lg font-light text-slate-300">
+            ระบบสวมใส่อาวุธ • สู้มอนสเตอร์ตามดินแดน • เควสหมู่บ้าน • อัปเลเวลนักรบ!
+        </p>
+        <button onclick="startGame()" class="px-12 py-6 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-extrabold rounded-2xl text-3xl shadow-[0_8px_0_#065f46] hover:shadow-[0_6px_0_#065f46] active:shadow-[0_0px_0_#065f46] active:translate-y-2 transition-all">
+            ▶ เริ่มการผจญภัย (START)
+        </button>
+    </div>
+
+    <!-- Minimap -->
+    <div class="absolute top-4 right-4 z-10 pointer-events-none opacity-90">
+        <canvas id="minimap" width="120" height="120"></canvas>
+        <div id="map-name" class="text-white text-center font-bold mt-1 text-sm bg-black/60 border border-white/20 rounded px-2 py-0.5 shadow-md">🌲 ป่าเริ่มต้น</div>
+    </div>
+
+    <!-- HUD: Stats & Inventory & Level -->
+    <div class="absolute top-4 left-4 flex flex-col gap-2 z-10 pointer-events-none w-72">
+        <!-- LV & HP -->
+        <div class="bg-black/75 text-white p-3 rounded-2xl border-2 border-slate-500 shadow-xl flex flex-col gap-1.5 backdrop-blur-sm">
+            <div class="flex justify-between items-center">
+                <span class="text-yellow-400 font-extrabold text-lg">👑 LV. <span id="level-text">1</span></span>
+                <span id="hp-text" class="font-bold text-red-300 text-sm">100/100 HP</span>
+            </div>
+            <!-- HP Bar -->
+            <div class="w-full h-3.5 bg-red-950 rounded-full overflow-hidden border border-red-500/50">
+                <div id="hp-bar" class="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300" style="width: 100%;"></div>
+            </div>
+            <!-- EXP Bar -->
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-blue-300 font-bold">EXP:</span>
+                <div class="flex-1 h-2 bg-blue-950 rounded-full overflow-hidden border border-blue-500/30">
+                    <div id="exp-bar" class="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-300" style="width: 0%;"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Stats Row -->
+        <div class="flex gap-1.5 text-sm">
+            <div class="flex-1 bg-black/75 text-yellow-400 py-1.5 px-2 rounded-xl border border-yellow-600 shadow-md text-center font-bold">
+                ⚔️ ATK: <span id="atk-text" class="text-white">15</span>
+            </div>
+            <div class="flex-1 bg-black/75 text-blue-400 py-1.5 px-2 rounded-xl border border-blue-600 shadow-md text-center font-bold">
+                🛡️ DEF: <span id="def-text" class="text-white">5</span>
+            </div>
+            <div class="flex-1 bg-black/75 text-yellow-300 py-1.5 px-2 rounded-xl border border-yellow-400 shadow-md text-center font-bold">
+                💰 Gold: <span id="gold-text" class="text-white">0</span>
+            </div>
+        </div>
+
+        <!-- Quest Tracker -->
+        <div id="quest-tracker" class="hidden bg-black/75 text-white px-4 py-2.5 rounded-xl border-2 border-orange-500 shadow-lg mt-1 w-max backdrop-blur-sm">
+            <div class="text-orange-400 font-bold text-sm flex items-center gap-1">📜 เควสปัจจุบัน:</div>
+            <div id="quest-desc" class="text-xs mt-1 text-slate-200">กำจัดสไลม์ 0/3</div>
+        </div>
+    </div>
+
+    <!-- Action Button (Talk/Interact) -->
+    <div id="interact-container" class="hidden absolute bottom-24 left-1/2 transform -translate-x-1/2 z-10">
+        <button id="interact-btn" class="px-8 py-3 bg-white text-indigo-700 border-4 border-indigo-700 font-extrabold rounded-full text-xl shadow-xl active:bg-indigo-100 animate-bounce">
+            💬 พูดคุย (TALK)
+        </button>
+    </div>
+
+    <!-- Shop Modal -->
+    <div id="shop-ui" class="hidden absolute inset-0 bg-black/80 z-20 flex flex-col items-center justify-center p-4">
+        <div class="bg-yellow-50 rounded-2xl shadow-2xl max-w-2xl w-full p-6 text-center border-4 border-yellow-600">
+            <h2 class="text-3xl font-extrabold text-yellow-800 mb-2">🛒 ร้านค้าหมู่บ้าน</h2>
+            <p class="text-yellow-700 mb-4 font-semibold">เหรียญทองของคุณ: <span id="shop-gold" class="font-bold text-xl text-yellow-600">0</span> Gold</p>
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                <!-- Potion -->
+                <div class="bg-white p-3 rounded-xl border-2 border-yellow-200 shadow hover:border-yellow-400 transition-all flex flex-col justify-between">
+                    <div class="text-3xl mb-1">❤️</div>
+                    <div class="font-extrabold text-xs text-gray-800">ยาโพชั่นแดง</div>
+                    <div class="text-[10px] text-green-600 mb-2">+50 HP</div>
+                    <button onclick="buyItem('potion', 20)" class="w-full bg-yellow-500 hover:bg-yellow-400 text-white font-extrabold py-1.5 rounded shadow text-xs">20 💰</button>
+                </div>
+                <!-- Sword -->
+                <div class="bg-white p-3 rounded-xl border-2 border-yellow-200 shadow hover:border-yellow-400 transition-all flex flex-col justify-between">
+                    <div class="text-3xl mb-1">⚔️</div>
+                    <div class="font-extrabold text-xs text-gray-800">ดาบเหล็ก Voxel</div>
+                    <div class="text-[10px] text-red-600 mb-2">+5 ATK</div>
+                    <button onclick="buyItem('sword', 50)" class="w-full bg-yellow-500 hover:bg-yellow-400 text-white font-extrabold py-1.5 rounded shadow text-xs">50 💰</button>
+                </div>
+                <!-- Shield -->
+                <div class="bg-white p-3 rounded-xl border-2 border-yellow-200 shadow hover:border-yellow-400 transition-all flex flex-col justify-between">
+                    <div class="text-3xl mb-1">🛡️</div>
+                    <div class="font-extrabold text-xs text-gray-800">โล่อัศวินคราม</div>
+                    <div class="text-[10px] text-blue-600 mb-2">+3 DEF</div>
+                    <button onclick="buyItem('shield', 40)" class="w-full bg-yellow-500 hover:bg-yellow-400 text-white font-extrabold py-1.5 rounded shadow text-xs">40 💰</button>
+                </div>
+                <!-- Mining Helmet -->
+                <div class="bg-white p-3 rounded-xl border-2 border-yellow-200 shadow hover:border-yellow-400 transition-all flex flex-col justify-between">
+                    <div class="text-3xl mb-1">💡</div>
+                    <div class="font-extrabold text-xs text-gray-800">หมวกเหมืองยังชีพ</div>
+                    <div class="text-[10px] text-yellow-600 mb-2">ส่องแสงนำทางตอนกลางคืน +1 DEF</div>
+                    <button onclick="buyItem('helmet', 30)" class="w-full bg-yellow-500 hover:bg-yellow-400 text-white font-extrabold py-1.5 rounded shadow text-xs">30 💰</button>
+                </div>
+            </div>
+            
+            <button onclick="closeModal('shop-ui')" class="px-8 py-2.5 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-xl text-lg shadow-[0_4px_0_#374151] active:translate-y-1 active:shadow-none transition-all">
+                ปิดร้านค้า (Close)
+            </button>
+        </div>
+    </div>
+
+    <!-- Quest Modal -->
+    <div id="quest-ui" class="hidden absolute inset-0 bg-black/80 z-20 flex flex-col items-center justify-center p-4">
+        <div class="bg-orange-50 rounded-2xl shadow-2xl max-w-md w-full p-6 text-center border-4 border-orange-500">
+            <h2 class="text-3xl font-extrabold text-orange-800 mb-4">📜 ผู้ใหญ่บ้านเคราขาว</h2>
+            
+            <div id="quest-dialog-content" class="text-lg text-gray-800 mb-6 font-semibold min-h-[80px] px-2 leading-relaxed">
+                "โอ้ นักเดินทาง! ช่วยกำจัดมอนสเตอร์แถวนี้ให้หน่อยได้ไหม?"
+            </div>
+            
+            <div id="quest-actions" class="flex gap-4 justify-center">
+                <!-- Actions injected via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- UI: Question Modal -->
+    <div id="quiz-ui" class="hidden absolute inset-0 bg-black/80 z-20 flex flex-col items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 text-center transform transition-transform scale-95 border-4 border-indigo-500">
+            <h2 class="text-3xl font-extrabold text-indigo-700 mb-2 tracking-wide">⚔️ BATTLE QUIZ!</h2>
+            <div class="flex items-center justify-center gap-3 mb-6 bg-slate-100 py-3 px-4 rounded-2xl border border-slate-200">
+                <p id="question-text" class="text-xl font-bold text-gray-800 min-h-[60px] flex items-center justify-center m-0 leading-snug">Loading...</p>
+                <button onclick="speakText(currentQuestion.q)" class="p-3 bg-blue-500 hover:bg-blue-400 text-white rounded-full shadow-md transition-all text-xl shrink-0" title="ฟังเสียง">
+                    🔊
+                </button>
+            </div>
+            <div id="choices-container" class="grid grid-cols-1 gap-3">
+                <!-- Choices will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- UI: Game Over Modal -->
+    <div id="game-over-ui" class="hidden absolute inset-0 bg-red-950/95 z-30 flex flex-col items-center justify-center p-4">
+        <h1 class="text-6xl md:text-8xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-500 mb-4 drop-shadow-lg text-center animate-pulse">GAME OVER</h1>
+        <p class="text-2xl text-red-200 mb-8 font-semibold">คุณพ่ายแพ้ในการผจญภัยครั้งนี้...</p>
+        <div class="bg-black/60 p-6 rounded-2xl border-2 border-red-500/30 mb-8 text-center text-xl text-white max-w-sm w-full">
+            <div class="flex justify-between border-b border-white/10 pb-2 mb-2"><span>💰 ทองที่ได้:</span> <span class="text-yellow-400 font-bold"><span id="final-gold">0</span> Gold</span></div>
+            <div class="flex justify-between border-b border-white/10 pb-2 mb-2"><span>🛡️ เลเวลอัปถึง:</span> <span class="text-cyan-300 font-bold">LV. <span id="final-level">1</span></span></div>
+            <div class="flex justify-between pb-1"><span>⚔️ พลังโจมตีสูงสุด:</span> <span class="text-orange-400 font-bold"><span id="final-atk">0</span> ATK</span></div>
+            
+            <div id="vocab-review" class="mt-4 pt-4 border-t border-red-500/30 text-left hidden">
+                <h3 class="text-yellow-300 font-bold text-sm mb-2">📚 ทบทวนคำศัพท์ที่ตอบผิด:</h3>
+                <div id="wrong-list-container" class="max-h-36 overflow-y-auto pr-1">
+                    <ul id="wrong-list" class="text-xs space-y-1.5 text-red-200"></ul>
+                </div>
+            </div>
+        </div>
+        <button onclick="location.reload()" class="px-10 py-5 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-extrabold rounded-2xl text-2xl shadow-[0_6px_0_#b45309] active:shadow-[0_0px_0_#b45309] active:translate-y-2 transition-all">
+            เล่นอีกครั้ง (RESTART)
+        </button>
+    </div>
+
+    <!-- Mobile Controls -->
+    <div class="absolute bottom-6 left-6 z-10 opacity-70">
+        <div id="joystick-zone" class="w-32 h-32 bg-white/20 rounded-full border-4 border-white/40 relative touch-none">
+            <div id="joystick-knob" class="w-12 h-12 bg-white rounded-full absolute top-10 left-10 shadow-lg"></div>
+        </div>
+    </div>
+    <div class="absolute bottom-6 right-6 z-10 opacity-70">
+        <button id="jump-btn" class="w-20 h-20 bg-blue-500/80 hover:bg-blue-400 text-white rounded-full border-4 border-white/40 shadow-lg font-bold text-xl active:bg-blue-600 touch-none">
+            JUMP
+        </button>
+    </div>
+
+    <!-- Three.js (r128) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        // --- Game Stats & State ---
+        let playerStats = {
+            hp: 100, maxHp: 100,
+            atk: 15, def: 5,
+            gold: 0,
+            xp: 0, nextXp: 50,
+            level: 1,
+            hasHelmet: false // เก็บสถานะว่าใส่หมวกไฟฉายหรือไม่
+        };
+        let isPaused = false;
+        let gameStarted = false;
+        
+        let currentMonster = null;
+        let monsters = [];
+        let items = [];
+        let entities = []; // NPCs & Portals
+        let treeObjects = []; // To change map colors
+        
+        let audioCtx = null;
+        let wrongVocabs = new Set();
+        let particles = [];
+        
+        let currentBiome = 'forest';
+        let monsterMultiplier = 1; // Increases in other maps
+
+        // Time Cycle Day/Night Setup
+        let timeCycle = 0; // Starts at day (0 to Math.PI * 2)
+        
+        // Quest State: 0=not started, 1=active, 2=ready to finish, 3=done
+        let questState = { status: 0, target: 3, current: 0, reward: 120 };
+
+        // --- Init Audio & Speech ---
+        function startGame() {
+            document.getElementById('start-ui').classList.add('hidden');
+            gameStarted = true;
+            
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (AudioContext) audioCtx = new AudioContext();
+            
+            if ('speechSynthesis' in window) {
+                let msg = new SpeechSynthesisUtterance('');
+                window.speechSynthesis.speak(msg);
+            }
+        }
+
+        // --- Audio System ---
+        function playSound(type) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            if (type === 'correct' || type === 'buy' || type === 'quest') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+            } else if (type === 'wrong' || type === 'error') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(140, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.25);
+                gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.25);
+            } else if (type === 'item') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(587, audioCtx.currentTime);
+                osc.frequency.setValueAtTime(1174, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.25);
+            } else if (type === 'portal') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(180, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(700, audioCtx.currentTime + 0.6);
+                gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.6);
+            } else if (type === 'levelup') {
+                // Majestic 3-note arpeggio
+                osc.type = 'sine';
+                const notes = [261.63, 329.63, 392.00, 523.25]; // C E G C
+                notes.forEach((freq, idx) => {
+                    const oscNote = audioCtx.createOscillator();
+                    const gainNote = audioCtx.createGain();
+                    oscNote.connect(gainNote);
+                    gainNote.connect(audioCtx.destination);
+                    oscNote.frequency.value = freq;
+                    gainNote.gain.setValueAtTime(0, audioCtx.currentTime + idx * 0.1);
+                    gainNote.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + idx * 0.1 + 0.05);
+                    gainNote.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + idx * 0.1 + 0.4);
+                    oscNote.start(audioCtx.currentTime + idx * 0.1);
+                    oscNote.stop(audioCtx.currentTime + idx * 0.1 + 0.45);
+                });
+            }
+        }
+
+        // ฟังก์ชันอ่านออกเสียงภาษาอังกฤษ (Text-to-Speech)
+        function speakText(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const msg = new SpeechSynthesisUtterance(text);
+                msg.lang = 'en-US';
+                msg.rate = 0.9;
+                window.speechSynthesis.speak(msg);
+            }
+        }
+
+        // --- UI Modals ---
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+            isPaused = false;
+        }
+
+        // Shop System
+        function openShop() {
+            isPaused = true;
+            document.getElementById('shop-gold').innerText = playerStats.gold;
+            document.getElementById('shop-ui').classList.remove('hidden');
+        }
+
+        function buyItem(type, price) {
+            if (playerStats.gold >= price) {
+                playerStats.gold -= price;
+                playSound('buy');
+                
+                if (type === 'potion') {
+                    playerStats.hp = Math.min(playerStats.maxHp, playerStats.hp + 50);
+                    showFloatingText("+50 HP", "#22c55e", player.position);
+                } else if (type === 'sword') {
+                    playerStats.atk += 5;
+                    showFloatingText("+5 ATK ⚔️", "#ffea00", player.position);
+                    equipVisualWeapon('sword');
+                } else if (type === 'shield') {
+                    playerStats.def += 3;
+                    showFloatingText("+3 DEF 🛡️", "#00bbff", player.position);
+                    equipVisualWeapon('shield');
+                } else if (type === 'helmet') {
+                    playerStats.def += 1;
+                    showFloatingText("+1 DEF & หมวกไฟฉาย 💡", "#ffff00", player.position);
+                    equipVisualWeapon('helmet');
+                }
+                
+                document.getElementById('shop-gold').innerText = playerStats.gold;
+                updateHUD();
+            } else {
+                playSound('error');
+                showFloatingText("ทองไม่พอ!", "#ff3333", player.position);
+            }
+        }
+
+        // Quest System
+        function openQuest() {
+            isPaused = true;
+            const content = document.getElementById('quest-dialog-content');
+            const actions = document.getElementById('quest-actions');
+            actions.innerHTML = '';
+            
+            if (questState.status === 0) {
+                content.innerText = '"นักเดินทาง! ได้โปรดช่วยกำจัดมอนสเตอร์ 3 ตัว เพื่อความสงบสุขของหมู่บ้านเราได้หรือไม่? ข้ามีรางวัลให้ 120 Gold"';
+                const btn = document.createElement('button');
+                btn.className = "px-6 py-2.5 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 text-white font-bold rounded-xl shadow transition-all";
+                btn.innerText = "✅ รับเควส";
+                btn.onclick = () => {
+                    questState.status = 1;
+                    playSound('quest');
+                    updateQuestHUD();
+                    closeModal('quest-ui');
+                    showFloatingText("Quest Accepted!", "#ffa500", player.position);
+                };
+                actions.appendChild(btn);
+            } else if (questState.status === 1) {
+                content.innerText = `"ยังกำจัดไม่ครบนะ ตอนนี้เจ้าจัดการไปแล้ว ${questState.current}/${questState.target} ตัว ไปสู้ต่อเถอะ!"`;
+            } else if (questState.status === 2) {
+                content.innerText = '"โอ้ ยอดเยี่ยมมาก! เจ้าปกป้องพวกเราไว้ได้จริง ๆ นี่คือ 120 Gold สำหรับความช่วยเหลือของเจ้า"';
+                const btn = document.createElement('button');
+                btn.className = "px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white font-bold rounded-xl shadow transition-all";
+                btn.innerText = "💰 รับรางวัล";
+                btn.onclick = () => {
+                    questState.status = 3;
+                    playerStats.gold += questState.reward;
+                    playSound('buy');
+                    gainXP(25); // Bonus quest XP
+                    updateHUD();
+                    updateQuestHUD();
+                    closeModal('quest-ui');
+                    showFloatingText("+120 Gold 💰", "#ffd700", player.position);
+                };
+                actions.appendChild(btn);
+            } else if (questState.status === 3) {
+                content.innerText = '"ขอบคุณอีกครั้งนะนักเดินทาง! หมู่บ้านเราปลอดภัยแล้วเพราะความกล้าหาญ of เจ้า"';
+            }
+            
+            const closeBtn = document.createElement('button');
+            closeBtn.className = "px-6 py-2.5 bg-gray-500 hover:bg-gray-400 text-white font-bold rounded-xl shadow transition-all";
+            closeBtn.innerText = "ปิด (Close)";
+            closeBtn.onclick = () => closeModal('quest-ui');
+            actions.appendChild(closeBtn);
+            
+            document.getElementById('quest-ui').classList.remove('hidden');
+        }
+
+        function updateQuestHUD() {
+            const tracker = document.getElementById('quest-tracker');
+            const desc = document.getElementById('quest-desc');
+            
+            if (questState.status === 1 || questState.status === 2) {
+                tracker.classList.remove('hidden');
+                desc.innerText = `กำจัดมอนสเตอร์ ${questState.current}/${questState.target}`;
+                if(questState.status === 2) {
+                    desc.innerText = "สำเร็จ! กลับไปคุยกับผู้ใหญ่บ้าน";
+                    desc.classList.remove('text-slate-200');
+                    desc.classList.add('text-green-400');
+                }
+            } else {
+                tracker.classList.add('hidden');
+            }
+        }
+
+        // --- Three.js Setup ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); 
+        scene.fog = new THREE.Fog(0x87CEEB, 20, 100);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(50, 100, 50);
+        dirLight.castShadow = true;
+        dirLight.shadow.camera.top = 50;
+        dirLight.shadow.camera.bottom = -50;
+        dirLight.shadow.camera.left = -50;
+        dirLight.shadow.camera.right = 50;
+        scene.add(dirLight);
+
+        const ambLight = new THREE.AmbientLight(0x404040, 0.6);
+        scene.add(ambLight);
+
+        // Ground
+        const groundGeo = new THREE.PlaneGeometry(200, 200);
+        const groundMat = new THREE.MeshLambertMaterial({ color: 0x4ade80 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Trees
+        for(let i=0; i<40; i++) {
+            createTree((Math.random() - 0.5) * 180, (Math.random() - 0.5) * 180);
+        }
+
+        function createTree(x, z) {
+            // Keep safe area near center
+            if(Math.abs(x) < 20 && Math.abs(z) < 20) return;
+            
+            const trunk = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+            trunk.position.set(x, 1, z);
+            trunk.castShadow = true;
+            
+            const leavesMat = new THREE.MeshLambertMaterial({ color: 0x228B22 });
+            const leaves = new THREE.Mesh(new THREE.BoxGeometry(3, 3, 3), leavesMat);
+            leaves.position.set(x, 3.5, z);
+            leaves.castShadow = true;
+
+            scene.add(trunk);
+            scene.add(leaves);
+            treeObjects.push({ leavesMat: leavesMat });
+        }
+
+        // --- Player (Voxel Character Style) ---
+        const player = new THREE.Group();
+        
+        // Materials for Player
+        const skinMat = new THREE.MeshLambertMaterial({ color: 0xffcc99 });
+        const shirtMat = new THREE.MeshLambertMaterial({ color: 0x3b82f6 }); // Blue shirt
+        const pantsMat = new THREE.MeshLambertMaterial({ color: 0x1e3a8a }); // Dark blue pants
+        const hairMat = new THREE.MeshLambertMaterial({ color: 0x3e2723 }); // Brown hair
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 }); // Black eyes
+
+        // 1. Head Group (Includes Face & Hair)
+        const headGroup = new THREE.Group();
+        const headMesh = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), skinMat);
+        headMesh.castShadow = true;
+        headGroup.add(headMesh);
+        
+        const hair = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.2, 0.65), hairMat);
+        hair.position.y = 0.3; // Top of head
+        hair.castShadow = true;
+        headGroup.add(hair);
+
+        const leftEye = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), eyeMat);
+        leftEye.position.set(-0.15, 0.05, 0.31);
+        headGroup.add(leftEye);
+
+        const rightEye = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), eyeMat);
+        rightEye.position.set(0.15, 0.05, 0.31);
+        headGroup.add(rightEye);
+
+        headGroup.position.set(0, 0.7, 0); // Position above body
+        player.add(headGroup);
+
+        // 2. Body
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.7, 0.4), shirtMat);
+        body.position.set(0, 0.05, 0);
+        body.castShadow = true;
+        player.add(body);
+
+        // 3. Helper function to create Limbs with pivot at the top
+        function createLimb(width, height, depth, material) {
+            const group = new THREE.Group();
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
+            mesh.position.y = -height / 2; // Shift down so pivot is at top
+            mesh.castShadow = true;
+            group.add(mesh);
+            return group;
+        }
+
+        // 4. Arms & Hand Slots (for Equipping Weapons)
+        const leftArm = createLimb(0.25, 0.7, 0.25, skinMat);
+        leftArm.position.set(-0.45, 0.4, 0); // Attached to shoulder
+        player.add(leftArm);
+
+        const rightArm = createLimb(0.25, 0.7, 0.25, skinMat);
+        rightArm.position.set(0.45, 0.4, 0);
+        player.add(rightArm);
+
+        // Arm weapons/equipment containers
+        let equippedSwordMesh = null;
+        let equippedShieldMesh = null;
+        let equippedHelmetMesh = null;
+        let headlight = null; // แสงไฟฉายบนหมวก
+
+        function equipVisualWeapon(type) {
+            if (type === 'sword') {
+                if (equippedSwordMesh) return; // Already has it
+                // Create Voxel Sword Mesh to attach to Right Hand
+                const swordGroup = new THREE.Group();
+                const blade = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.8, 0.2), new THREE.MeshLambertMaterial({ color: 0xdddddd }));
+                blade.position.y = 0.5;
+                const guard = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.08, 0.1), new THREE.MeshLambertMaterial({ color: 0xd4af37 }));
+                guard.position.y = 0.1;
+                const hilt = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.2, 0.08), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+                hilt.position.y = -0.05;
+                swordGroup.add(blade, guard, hilt);
+
+                // Place inside the right arm group (offset to bottom where the hand is)
+                swordGroup.position.set(0, -0.7, 0.1);
+                swordGroup.rotation.x = -Math.PI / 2.5; // Point forward
+                rightArm.add(swordGroup);
+                equippedSwordMesh = swordGroup;
+            } else if (type === 'shield') {
+                if (equippedShieldMesh) return;
+                // Create Voxel Shield to attach to Left Hand
+                const shieldGroup = new THREE.Group();
+                const plate = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 0.08), new THREE.MeshLambertMaterial({ color: 0x3b82f6 }));
+                const rim = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.54, 0.04), new THREE.MeshLambertMaterial({ color: 0xdddddd }));
+                rim.position.z = -0.01;
+                shieldGroup.add(plate, rim);
+
+                // Place on left hand facing outward
+                shieldGroup.position.set(0, -0.4, -0.15);
+                shieldGroup.rotation.y = -Math.PI / 12;
+                leftArm.add(shieldGroup);
+                equippedShieldMesh = shieldGroup;
+            } else if (type === 'helmet') {
+                if (equippedHelmetMesh) return;
+                // สร้างหมวกคนเหมืองสีเหลืองติดไฟฉายส่องสว่างสวมบนหัว
+                const helmetGroup = new THREE.Group();
+                
+                // ตัวหมวกครอบหัว
+                const band = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.15, 0.66), new THREE.MeshLambertMaterial({ color: 0xFFD700 }));
+                band.position.y = 0.35;
+                const dome = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.15, 0.5), new THREE.MeshLambertMaterial({ color: 0xFFD700 }));
+                dome.position.y = 0.5;
+                
+                // แท่นไฟฉายด้านหน้าหมวก
+                const mount = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.15), new THREE.MeshLambertMaterial({ color: 0x333333 }));
+                mount.position.set(0, 0.35, 0.34);
+                
+                // เลนส์ไฟฉายสีขาวเรืองแสง
+                const lens = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.05), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+                lens.position.set(0, 0.35, 0.41);
+                
+                helmetGroup.add(band, dome, mount, lens);
+                headGroup.add(helmetGroup);
+                equippedHelmetMesh = helmetGroup;
+                playerStats.hasHelmet = true;
+
+                // ติดตั้งดวงไฟ PointLight สีขาวนวลไปที่กลุ่มหัว (headGroup) เพื่อส่องไปทิศทางที่หัวหัน
+                const light = new THREE.PointLight(0xffffff, 0, 22);
+                light.position.set(0, 0.35, 0.5);
+                headGroup.add(light);
+                headlight = light;
+            }
+        }
+
+        // 5. Legs
+        const leftLeg = createLimb(0.3, 0.7, 0.3, pantsMat);
+        leftLeg.position.set(-0.16, -0.3, 0); // Attached to hips
+        player.add(leftLeg);
+
+        const rightLeg = createLimb(0.3, 0.7, 0.3, pantsMat);
+        rightLeg.position.set(0.16, -0.3, 0);
+        player.add(rightLeg);
+
+        // Set initial player position
+        player.position.set(0, 1, 0); // Ground level (Feet touch y=0)
+        scene.add(player);
+
+        let velocityY = 0; 
+        let isGrounded = true;
+        let walkTime = 0; // For limb animation
+        let attackAnimTime = 0; // For slashing arm effect
+
+        // --- NPC & Entities System ---
+        function createEntityTag(text) {
+            const el = document.createElement('div');
+            el.className = 'name-tag';
+            el.innerHTML = text;
+            document.body.appendChild(el);
+            return el;
+        }
+
+        // ฟังก์ชันช่วยสร้างตัวละคร NPC แบบ Voxel
+        function buildVoxelCharacter(skinHex, shirtHex, pantsHex, hairHex, accessories) {
+            const charGroup = new THREE.Group();
+            const skinMat = new THREE.MeshLambertMaterial({ color: skinHex });
+            const shirtMat = new THREE.MeshLambertMaterial({ color: shirtHex });
+            const pantsMat = new THREE.MeshLambertMaterial({ color: pantsHex });
+            const hairMat = new THREE.MeshLambertMaterial({ color: hairHex });
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+
+            // หัวและหน้าตา
+            const headGroup = new THREE.Group();
+            const headMesh = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), skinMat);
+            headMesh.castShadow = true;
+            headGroup.add(headMesh);
+            
+            const hair = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.2, 0.65), hairMat);
+            hair.position.y = 0.3;
+            hair.castShadow = true;
+            headGroup.add(hair);
+
+            const leftEye = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), eyeMat);
+            leftEye.position.set(-0.15, 0.05, 0.31);
+            headGroup.add(leftEye);
+            const rightEye = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), eyeMat);
+            rightEye.position.set(0.15, 0.05, 0.31);
+            headGroup.add(rightEye);
+
+            headGroup.position.set(0, 0.7, 0);
+            charGroup.add(headGroup);
+
+            // ลำตัว
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.7, 0.4), shirtMat);
+            body.position.set(0, 0.05, 0);
+            body.castShadow = true;
+            charGroup.add(body);
+
+            // แขนและขา (ใช้ createLimb จากด้านบน)
+            const leftArm = createLimb(0.25, 0.7, 0.25, shirtMat); // แขนเสื้อสีเดียวกับเสื้อ
+            leftArm.position.set(-0.45, 0.4, 0);
+            charGroup.add(leftArm);
+
+            const rightArm = createLimb(0.25, 0.7, 0.25, shirtMat);
+            rightArm.position.set(0.45, 0.4, 0);
+            charGroup.add(rightArm);
+
+            const leftLeg = createLimb(0.3, 0.7, 0.3, pantsMat);
+            leftLeg.position.set(-0.16, -0.3, 0);
+            charGroup.add(leftLeg);
+
+            const rightLeg = createLimb(0.3, 0.7, 0.3, pantsMat);
+            rightLeg.position.set(0.16, -0.3, 0);
+            charGroup.add(rightLeg);
+
+            // ของประดับตกแต่งตามอาชีพ
+            if(accessories === 'merchant') {
+                // กระเป๋าเป้พ่อค้า
+                const bag = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 0.5), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+                bag.position.set(0, 0.1, -0.3);
+                charGroup.add(bag);
+                // หมวกพ่อค้าสีเหลือง
+                const hat = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.15, 0.7), new THREE.MeshLambertMaterial({ color: 0xFFD700 }));
+                hat.position.y = 0.45;
+                headGroup.add(hat);
+            } else if(accessories === 'quest') {
+                // ไม้เท้าผู้ใหญ่บ้าน
+                const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.5), new THREE.MeshLambertMaterial({ color: 0x5C4033 }));
+                staff.position.set(0.45, -0.2, 0.3); // ถือไว้ที่มือขวา
+                staff.rotation.x = Math.PI / 6;
+                charGroup.add(staff);
+                
+                // หนวดเคราสีเทา
+                const beard = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.3, 0.1), hairMat);
+                beard.position.set(0, -0.2, 0.31);
+                headGroup.add(beard);
+            }
+
+            return charGroup;
+        }
+
+        // 1. Merchant (พ่อค้าเสื้อส้ม กางเกงน้ำตาล ใส่หมวกและสะพายเป้)
+        const merchant = buildVoxelCharacter(0xffcc99, 0xFFA500, 0x8B4513, 0x000000, 'merchant');
+        merchant.position.set(10, 1, 10);
+        merchant.rotation.y = -Math.PI / 4; // หันหน้ามาตรงกลางเล็กน้อย
+        scene.add(merchant);
+        entities.push({ mesh: merchant, type: 'merchant', tagElement: createEntityTag('🛒 พ่อค้า'), interact: openShop });
+
+        // 2. Quest NPC (ผู้ใหญ่บ้านเสื้อเทา กางเกงดำ ผมและหนวดเทา ถือไม้เท้า)
+        const questNpc = buildVoxelCharacter(0xffcc99, 0xDDDDDD, 0x333333, 0xAAAAAA, 'quest');
+        questNpc.position.set(-10, 1, 10);
+        questNpc.rotation.y = Math.PI / 4; // หันหน้ามาตรงกลางเล็กน้อย
+        scene.add(questNpc);
+        entities.push({ mesh: questNpc, type: 'quest', tagElement: createEntityTag('📜 ผู้ใหญ่บ้าน'), interact: openQuest });
+
+        // 3. Portals
+        function createPortal(x, z, color, label, targetBiome) {
+            const portal = new THREE.Mesh(
+                new THREE.TorusGeometry(1.5, 0.3, 16, 32), 
+                new THREE.MeshBasicMaterial({ color: color, wireframe: true })
+            );
+            portal.position.set(x, 1.5, z);
+            scene.add(portal);
+            entities.push({ 
+                mesh: portal, 
+                type: 'portal', 
+                target: targetBiome,
+                tagElement: createEntityTag(label),
+                interact: () => changeBiome(targetBiome)
+            });
+        }
+        
+        createPortal(40, 0, 0xFFA500, '🌌 ไปทะเลทราย', 'desert');
+        createPortal(-40, 0, 0xFF4500, '🌌 ไปภูเขาไฟ', 'volcano');
+
+        // Map/Biome Changing Logic
+        function changeBiome(biome) {
+            playSound('portal');
+            currentBiome = biome;
+            player.position.set(0, 1, 0); // Reset position to safe zone
+            showFloatingText("เปลี่ยนดินแดน!", "#ffffff", player.position);
+            
+            if (biome === 'forest') {
+                scene.background.setHex(0x87CEEB); scene.fog.color.setHex(0x87CEEB);
+                groundMat.color.setHex(0x4ade80);
+                treeObjects.forEach(t => t.leavesMat.color.setHex(0x228B22));
+                monsterMultiplier = 1;
+                document.getElementById('map-name').innerText = "🌲 ป่าเริ่มต้น";
+            } else if (biome === 'desert') {
+                scene.background.setHex(0xFFDAB9); scene.fog.color.setHex(0xFFDAB9);
+                groundMat.color.setHex(0xF4A460); // Sand
+                treeObjects.forEach(t => t.leavesMat.color.setHex(0xDAA520)); // Dry
+                monsterMultiplier = 1.6;
+                document.getElementById('map-name').innerText = "🏜️ ทะเลทราย";
+            } else if (biome === 'volcano') {
+                scene.background.setHex(0x2F0000); scene.fog.color.setHex(0x2F0000);
+                groundMat.color.setHex(0x333333); // Dark rock
+                treeObjects.forEach(t => t.leavesMat.color.setHex(0x8B0000)); // Red trees
+                monsterMultiplier = 2.6;
+                document.getElementById('map-name').innerText = "🌋 ภูเขาไฟ";
+            }
+            
+            // Rebuild and scale monsters immediately to match new biome
+            monsters.forEach((m, idx) => {
+                rebuildMonsterMesh(m);
+                m.maxHp = 30 * monsterMultiplier;
+                m.hp = m.maxHp;
+                m.atk = Math.floor(15 * monsterMultiplier);
+                updateMonsterTag(m);
+            });
+        }
+
+        // --- Unique Voxel Monsters Builder based on Biome ---
+        function createMonsterMeshForBiome(biome) {
+            const group = new THREE.Group();
+            
+            if (biome === 'forest') {
+                // Cute Bouncing Slime
+                const bodyGeo = new THREE.BoxGeometry(1.2, 0.9, 1.2);
+                const bodyMat = new THREE.MeshLambertMaterial({ color: 0x4ade80, transparent: true, opacity: 0.85 });
+                const mainBody = new THREE.Mesh(bodyGeo, bodyMat);
+                mainBody.position.y = 0.45;
+                group.add(mainBody);
+
+                // Slime Eyes
+                const eyeGeo = new THREE.BoxGeometry(0.15, 0.15, 0.15);
+                const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+                const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+                eyeL.position.set(-0.25, 0.5, 0.61);
+                const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+                eyeR.position.set(0.25, 0.5, 0.61);
+                group.add(eyeL, eyeR);
+
+                group.userData = { type: 'slime', bounceSpeed: 8 };
+
+            } else if (biome === 'desert') {
+                // Cactus Monster
+                const trunkGeo = new THREE.BoxGeometry(0.5, 1.5, 0.5);
+                const cactusMat = new THREE.MeshLambertMaterial({ color: 0x2e7d32 });
+                const mainTrunk = new THREE.Mesh(trunkGeo, cactusMat);
+                mainTrunk.position.y = 0.75;
+                group.add(mainTrunk);
+
+                // Arm L
+                const armL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.5, 0.3), cactusMat);
+                armL.position.set(-0.4, 0.9, 0);
+                group.add(armL);
+
+                // Arm R
+                const armR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.5, 0.3), cactusMat);
+                armR.position.set(0.4, 0.7, 0);
+                group.add(armR);
+
+                // Angry Eyes
+                const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffea00 });
+                const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), eyeMat);
+                eyeL.position.set(-0.15, 1.1, 0.26);
+                const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), eyeMat);
+                eyeR.position.set(0.15, 1.1, 0.26);
+                group.add(eyeL, eyeR);
+
+                group.userData = { type: 'cactus', bounceSpeed: 4 };
+
+            } else if (biome === 'volcano') {
+                // Lava Fire Golem
+                const lavaMat = new THREE.MeshLambertMaterial({ color: 0x8b0000 });
+                const fireMat = new THREE.MeshBasicMaterial({ color: 0xff3300 });
+
+                // Big head/torso block
+                const torso = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.4, 1.4), lavaMat);
+                torso.position.y = 0.7;
+                group.add(torso);
+
+                // Lava cracks details
+                const crack1 = new THREE.Mesh(new THREE.BoxGeometry(1.44, 0.2, 0.2), fireMat);
+                crack1.position.set(0, 0.6, 0);
+                group.add(crack1);
+
+                // Giant glowing fire eyes
+                const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffea00 });
+                const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), eyeMat);
+                eyeL.position.set(-0.35, 1.0, 0.71);
+                const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), eyeMat);
+                eyeR.position.set(0.35, 1.0, 0.71);
+                group.add(eyeL, eyeR);
+
+                group.userData = { type: 'golem', bounceSpeed: 2 };
+            }
+
+            return group;
+        }
+
+        function rebuildMonsterMesh(monster) {
+            scene.remove(monster.mesh);
+            monster.mesh = createMonsterMeshForBiome(currentBiome);
+            // Put it back to previous position
+            monster.mesh.position.set(monster.x, 0, monster.z);
+            scene.add(monster.mesh);
+        }
+
+        // --- Loot & Monsters Spawning ---
+        function spawnLoot(x, z) {
+            const rand = Math.random();
+            let type = 'coin';
+            if(rand < 0.1) type = 'sword';       
+            else if(rand < 0.2) type = 'shield'; 
+            else if(rand < 0.28) type = 'helmet'; // โอกาส 8% ที่จะดรอปหมวกไฟฉายยังชีพในฉาก!
+            else if(rand < 0.4) type = 'potion'; 
+
+            const mesh = createItemMesh(type);
+            mesh.position.set(x, 1, z);
+            scene.add(mesh);
+            items.push({ mesh, type, baseY: 1 });
+        }
+
+        function spawnMonster(x, z) {
+            const mesh = createMonsterMeshForBiome(currentBiome);
+            mesh.position.set(x, 0, z);
+            mesh.castShadow = true;
+            scene.add(mesh);
+            
+            const monster = {
+                mesh: mesh,
+                x: x, z: z,
+                hp: 30 * monsterMultiplier, 
+                maxHp: 30 * monsterMultiplier, 
+                atk: Math.floor(15 * monsterMultiplier),
+                tagElement: createEntityTag(''),
+                hitFlashTicks: 0 // Flash white on hit
+            };
+            updateMonsterTag(monster);
+            monsters.push(monster);
+        }
+
+        for(let i=0; i<6; i++) {
+            spawnMonster((Math.random()-0.5)*100, (Math.random()-0.5)*100);
+        }
+
+        function updateMonsterTag(monster) {
+            let mName = "🟢 สไลม์ป่า";
+            if(currentBiome === 'desert') mName = "🌵 มอนสเตอร์กระบองเพชร";
+            if(currentBiome === 'volcano') mName = "🌋 โกเลมภูเขาไฟ";
+            monster.tagElement.innerHTML = `${mName}<br><span style="color:#ffaaaa; font-weight:800;">HP: ${Math.max(0, Math.floor(monster.hp))}/${monster.maxHp}</span>`;
+        }
+
+        // --- Controls Setup ---
+        const keys = { w:false, a:false, s:false, d:false, space:false };
+        let joystickVector = { x: 0, y: 0 };
+
+        window.addEventListener('keydown', (e) => {
+            if(e.code === 'KeyW' || e.key === 'ArrowUp') keys.w = true;
+            if(e.code === 'KeyS' || e.key === 'ArrowDown') keys.s = true;
+            if(e.code === 'KeyA' || e.key === 'ArrowLeft') keys.a = true;
+            if(e.code === 'KeyD' || e.key === 'ArrowRight') keys.d = true;
+            if(e.code === 'Space') keys.space = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            if(e.code === 'KeyW' || e.key === 'ArrowUp') keys.w = false;
+            if(e.code === 'KeyS' || e.key === 'ArrowDown') keys.s = false;
+            if(e.code === 'KeyA' || e.key === 'ArrowLeft') keys.a = false;
+            if(e.code === 'KeyD' || e.key === 'ArrowRight') keys.d = false;
+            if(e.code === 'Space') keys.space = false;
+        });
+
+        // Joystick
+        const zone = document.getElementById('joystick-zone');
+        const knob = document.getElementById('joystick-knob');
+        let joyActive = false, joyOrigin = {x:0, y:0};
+
+        zone.addEventListener('touchstart', (e) => {
+            joyActive = true;
+            const rect = zone.getBoundingClientRect();
+            joyOrigin = { x: rect.left + 64, y: rect.top + 64 };
+            updateJoystick(e.touches[0]);
+        });
+        zone.addEventListener('touchmove', (e) => { if(joyActive) updateJoystick(e.touches[0]); });
+        zone.addEventListener('touchend', () => {
+            joyActive = false;
+            knob.style.transform = `translate(0px, 0px)`;
+            joystickVector = { x:0, y:0 };
+        });
+
+        function updateJoystick(touch) {
+            let dx = touch.clientX - joyOrigin.x;
+            let dy = touch.clientY - joyOrigin.y;
+            const dist = Math.min(Math.sqrt(dx*dx + dy*dy), 32);
+            const ang = Math.atan2(dy, dx);
+            knob.style.transform = `translate(${Math.cos(ang)*dist}px, ${Math.sin(ang)*dist}px)`;
+            joystickVector = { x: (dx/32), y: (dy/32) };
+            if(joystickVector.x > 1) joystickVector.x = 1; if(joystickVector.x < -1) joystickVector.x = -1;
+            if(joystickVector.y > 1) joystickVector.y = 1; if(joystickVector.y < -1) joystickVector.y = -1;
+        }
+
+        document.getElementById('jump-btn').addEventListener('touchstart', () => keys.space = true);
+        document.getElementById('jump-btn').addEventListener('touchend', () => keys.space = false);
+
+        // --- Level & XP System ---
+        function gainXP(amount) {
+            playerStats.xp += amount;
+            if(playerStats.xp >= playerStats.nextXp) {
+                // LEVEL UP!
+                playerStats.xp -= playerStats.nextXp;
+                playerStats.level += 1;
+                playerStats.nextXp = Math.floor(playerStats.nextXp * 1.5);
+                
+                // Stat Boosts
+                playerStats.maxHp += 20;
+                playerStats.hp = playerStats.maxHp;
+                playerStats.atk += 4;
+                playerStats.def += 2;
+                
+                playSound('levelup');
+                showFloatingText("LEVEL UP! ⭐", "#00ffff", player.position);
+                spawnLevelUpParticles(player.position);
+            }
+            updateHUD();
+        }
+
+        function spawnLevelUpParticles(pos) {
+            for (let i = 0; i < 30; i++) {
+                const geo = new THREE.BoxGeometry(0.2, 0.4, 0.2);
+                const mat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set(pos.x, pos.y + 0.5, pos.z);
+                scene.add(mesh);
+                particles.push({
+                    mesh: mesh,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: Math.random() * 12 + 6,
+                    vz: (Math.random() - 0.5) * 8,
+                    life: 1.2
+                });
+            }
+        }
+
+        // --- Systems ---
+        function updateHUD() {
+            document.getElementById('hp-text').innerText = `${Math.floor(playerStats.hp)}/${playerStats.maxHp} HP`;
+            document.getElementById('hp-bar').style.width = `${(playerStats.hp / playerStats.maxHp) * 100}%`;
+            
+            // Level & XP Bar
+            document.getElementById('level-text').innerText = playerStats.level;
+            const expPct = (playerStats.xp / playerStats.nextXp) * 100;
+            document.getElementById('exp-bar').style.width = `${expPct}%`;
+
+            document.getElementById('atk-text').innerText = playerStats.atk;
+            document.getElementById('def-text').innerText = playerStats.def;
+            document.getElementById('gold-text').innerText = playerStats.gold;
+            if(playerStats.hp <= 0) gameOver();
+        }
+
+        function showFloatingText(text, color, position) {
+            const el = document.createElement('div');
+            el.className = 'damage-text';
+            el.style.color = color;
+            el.innerText = text;
+            const tempV = new THREE.Vector3(position.x, position.y + 1, position.z);
+            tempV.project(camera);
+            el.style.left = `${(tempV.x * .5 + .5) * window.innerWidth}px`;
+            el.style.top = `${(tempV.y * -.5 + .5) * window.innerHeight}px`;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 1000);
+        }
+
+        function gameOver() {
+            isPaused = true;
+            document.getElementById('final-gold').innerText = playerStats.gold;
+            document.getElementById('final-atk').innerText = playerStats.atk;
+            document.getElementById('final-level').innerText = playerStats.level;
+            if (wrongVocabs.size > 0) {
+                document.getElementById('vocab-review').classList.remove('hidden');
+                const listEl = document.getElementById('wrong-list');
+                listEl.innerHTML = '';
+                wrongVocabs.forEach(qText => {
+                    const qObj = quizData.find(q => q.q === qText);
+                    if (qObj) {
+                        const li = document.createElement('li');
+                        li.innerText = `❌ ${qObj.q} (เฉลยที่ถูก: ${qObj.choices[qObj.ans]})`;
+                        listEl.appendChild(li);
+                    }
+                });
+            }
+            document.getElementById('game-over-ui').classList.remove('hidden');
+        }
+
+        // --- Quiz System ---
+        const quizData = [
+            { q: "คำศัพท์ใดแปลว่า 'อาวุธ'?", choices: ["Armor", "Weapon", "Potion", "Shield"], ans: 1 },
+            { q: "ข้อใดคือคำตรงข้ามของ 'Attack'?", choices: ["Defend", "Fight", "Strike", "Run"], ans: 0 },
+            { q: "'Sword' แปลว่าอะไร?", choices: ["หอก", "ธนู", "ดาบ", "ขวาน"], ans: 2 },
+            { q: "ถ้าบาดเจ็บต้องดื่มอะไร?", choices: ["Poison", "Venom", "Potion", "Sword"], ans: 2 },
+            { q: "คำใดแปลว่า 'เอาชนะ'?", choices: ["Lose", "Defeat", "Surrender", "Flee"], ans: 1 },
+            { q: "ข้อใดคืออุปกรณ์ป้องกัน?", choices: ["Blade", "Arrow", "Spear", "Shield"], ans: 3 },
+            { q: "'Merchant' แปลว่าอะไร?", choices: ["นักรบ", "ชาวนา", "พ่อค้า", "ราชา"], ans: 2 },
+            { q: "ถ้าต้องการซื้อของต้องไปที่ไหน?", choices: ["Shop", "Dungeon", "Forest", "Sky"], ans: 0 },
+            { q: "คำศัพท์ใดแปลว่า 'ทราย'?", choices: ["Lava", "Sand", "Rock", "Water"], ans: 1 },
+            { q: "คำศัพท์ใดแปลว่า 'ภูเขาไฟ'?", choices: ["Mountain", "River", "Volcano", "Island"], ans: 2 }
+        ];
+
+        let currentQuestion = null;
+
+        function openBattleQuiz(monster) {
+            isPaused = true;
+            currentMonster = monster;
+            currentQuestion = quizData[Math.floor(Math.random() * quizData.length)];
+            
+            document.getElementById('question-text').innerText = currentQuestion.q;
+            const container = document.getElementById('choices-container');
+            container.innerHTML = '';
+            
+            currentQuestion.choices.forEach((choice, idx) => {
+                const btn = document.createElement('button');
+                btn.className = "w-full py-4 px-6 bg-gray-100 hover:bg-indigo-100 border-2 border-gray-300 hover:border-indigo-500 rounded-xl text-lg font-bold text-gray-700 active:bg-indigo-200 transition-colors text-left flex items-center justify-between";
+                btn.innerHTML = `<span>${choice}</span> <span class="text-gray-400 text-sm">#${idx+1}</span>`;
+                btn.onclick = () => answerBattle(idx);
+                container.appendChild(btn);
+            });
+            
+            document.getElementById('quiz-ui').classList.remove('hidden');
+            setTimeout(() => speakText(currentQuestion.q), 300);
+        }
+
+        function answerBattle(selectedIdx) {
+            document.getElementById('quiz-ui').classList.add('hidden');
+            
+            if(selectedIdx === currentQuestion.ans) {
+                // --- Correct Answer Attack Sequence ---
+                playSound('correct');
+                
+                // Trigger Slashing Weapon Animation!
+                attackAnimTime = 1.0; 
+
+                const damage = playerStats.atk;
+                currentMonster.hp -= damage;
+                showFloatingText(`-${damage}`, '#ffea00', currentMonster.mesh.position);
+                
+                // Flash white on Hit
+                currentMonster.hitFlashTicks = 8;
+                spawnCombatParticles(currentMonster.mesh.position, 0xffea00);
+
+                // Knock back monster slightly on hit
+                const knockDir = new THREE.Vector3().copy(currentMonster.mesh.position).sub(player.position).normalize();
+                currentMonster.mesh.position.addScaledVector(knockDir, 1.2);
+
+                if(currentMonster.hp <= 0) {
+                    spawnLoot(currentMonster.mesh.position.x, currentMonster.mesh.position.z);
+                    
+                    // Award XP and Gold!
+                    gainXP(15);
+                    playerStats.gold += 15;
+                    showFloatingText("+15 XP ⭐", "#00ffff", player.position);
+
+                    // Re-spawn monster
+                    currentMonster.mesh.position.set((Math.random()-0.5)*180, 0, (Math.random()-0.5)*180);
+                    currentMonster.hp = currentMonster.maxHp;
+                    
+                    // Quest Update
+                    if (questState.status === 1) {
+                        questState.current++;
+                        if (questState.current >= questState.target) {
+                            questState.status = 2; // Ready to turn in
+                            playSound('correct'); 
+                            showFloatingText("เควสสำเร็จ! 📜", "#22c55e", player.position);
+                        }
+                        updateQuestHUD();
+                    }
+                }
+                updateMonsterTag(currentMonster);
+                
+            } else {
+                // Wrong Answer (Monster Attacks Player)
+                playSound('wrong');
+                wrongVocabs.add(currentQuestion.q); 
+                const damage = Math.max(1, currentMonster.atk - playerStats.def);
+                playerStats.hp -= damage;
+                showFloatingText(`-${damage}`, '#ff3333', player.position);
+                
+                // Red particles on player hit
+                spawnCombatParticles(player.position, 0xff3333);
+                updateHUD();
+            }
+            
+            // Push player back to prevent auto-recollide
+            player.position.x -= Math.sin(player.rotation.y) * 2;
+            player.position.z -= Math.cos(player.rotation.y) * 2;
+            setTimeout(() => { isPaused = false; }, 300);
+        }
+
+        function spawnCombatParticles(pos, colorHex) {
+            for (let i = 0; i < 15; i++) {
+                const geo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+                const mat = new THREE.MeshBasicMaterial({ color: colorHex });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set(pos.x, pos.y + 0.5, pos.z);
+                scene.add(mesh);
+                particles.push({
+                    mesh: mesh,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: Math.random() * 8 + 3,
+                    vz: (Math.random() - 0.5) * 6,
+                    life: 0.6
+                });
+            }
+        }
+
+        // --- Main Game Loop ---
+        const clock = new THREE.Clock();
+
+        function drawMinimap() {
+            const canvas = document.getElementById('minimap');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+            
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.arc(w/2, h/2, w/2 - 2, 0, Math.PI*2); ctx.stroke();
+
+            const mapScale = (w / 2) / 100; 
+            const drawDot = (x, z, color, size) => {
+                const mx = w/2 + (x * mapScale);
+                const my = h/2 + (z * mapScale);
+                if (mx < 0 || mx > w || my < 0 || my > h) return;
+                ctx.fillStyle = color;
+                ctx.beginPath(); ctx.arc(mx, my, size, 0, Math.PI*2); ctx.fill();
+            };
+
+            items.forEach(i => drawDot(i.mesh.position.x, i.mesh.position.z, '#ffff00', 2));
+            monsters.forEach(m => drawDot(m.mesh.position.x, m.mesh.position.z, '#ff4444', 3));
+            entities.forEach(e => {
+                if (e.type === 'portal') drawDot(e.mesh.position.x, e.mesh.position.z, '#a855f7', 4);
+                else drawDot(e.mesh.position.x, e.mesh.position.z, '#22c55e', 4);
+            });
+            drawDot(player.position.x, player.position.z, '#3b82f6', 4);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = clock.getDelta();
+
+            if (!isPaused && gameStarted) {
+                // Day/Night Atmospheric cycle
+                timeCycle += 0.05 * dt; // Slow progression
+                const skyIntensity = 0.5 + Math.sin(timeCycle) * 0.5; // Oscillates between 0 and 1
+                
+                // Smooth sky color transition from day sky to beautiful night sky
+                const daySky = new THREE.Color(0x87CEEB);
+                const nightSky = new THREE.Color(0x0a0a18); // ปรับช่วงกลางคืนให้มืดสนิทยิ่งขึ้น
+                const currentSky = daySky.clone().lerp(nightSky, 1.0 - skyIntensity);
+                scene.background.copy(currentSky);
+                scene.fog.color.copy(currentSky);
+                
+                // Adjust light intensity
+                dirLight.intensity = 0.8 * skyIntensity + 0.02; // มืดลงอย่างชัดเจนตอนกลางคืน
+                ambLight.intensity = 0.6 * skyIntensity + 0.05; // มืดลงอย่างชัดเจนตอนกลางคืน
+
+                // อัปเดตความสว่างของไฟฉายคาดหัว (ถ้าผู้เล่นสวมใส่หมวกเหมืองยังชีพอยู่)
+                if (playerStats.hasHelmet && headlight) {
+                    const nightFactor = 1.0 - skyIntensity; // ยิ่งกลางคืนมืด ไฟยิ่งส่องสว่างขึ้น
+                    headlight.intensity = nightFactor * 3.0; // ปรับความแรงลำแสงไฟฉาย
+                }
+
+                // Movement
+                const moveSpeed = 15 * dt;
+                let dx = 0, dz = 0;
+
+                if (keys.w) dz = -1; if (keys.s) dz = 1;
+                if (keys.a) dx = -1; if (keys.d) dx = 1;
+                if (joystickVector.x !== 0 || joystickVector.y !== 0) {
+                    dx = joystickVector.x; dz = joystickVector.y;
+                }
+
+                if (dx !== 0 || dz !== 0) {
+                    const angle = Math.atan2(dx, dz);
+                    player.rotation.y = angle;
+                    player.position.x += Math.sin(angle) * moveSpeed;
+                    player.position.z += Math.cos(angle) * moveSpeed;
+                    
+                    // Walking Animation (Swing Arms and Legs)
+                    walkTime += 15 * dt;
+                    leftLeg.rotation.x = Math.sin(walkTime) * 0.8;
+                    rightLeg.rotation.x = -Math.sin(walkTime) * 0.8;
+                    
+                    // Arms swing only when not swinging sword/weapon
+                    if (attackAnimTime <= 0) {
+                        leftArm.rotation.x = -Math.sin(walkTime) * 0.8;
+                        rightArm.rotation.x = Math.sin(walkTime) * 0.8;
+                    }
+
+                } else if(isGrounded) {
+                    // Reset Legs standing still
+                    leftLeg.rotation.x = 0;
+                    rightLeg.rotation.x = 0;
+                    
+                    if (attackAnimTime <= 0) {
+                        leftArm.rotation.x = 0;
+                        rightArm.rotation.x = 0;
+                    }
+                }
+
+                // Handle combat swinging animation for player
+                if (attackAnimTime > 0) {
+                    attackAnimTime -= 5 * dt; // Quick swipe
+                    rightArm.rotation.x = -Math.PI / 2 + Math.sin(attackAnimTime * Math.PI) * 1.5;
+                }
+
+                // Jumping Physics
+                if (keys.space && isGrounded) { velocityY = 15; isGrounded = false; }
+                if (!isGrounded) {
+                    velocityY -= 30 * dt; 
+                    player.position.y += velocityY * dt;
+                    if (player.position.y <= 1) { 
+                        player.position.y = 1; 
+                        isGrounded = true; 
+                        velocityY = 0; 
+                    }
+                }
+
+                // Boundary Limits
+                if (player.position.x > 95) player.position.x = 95; if (player.position.x < -95) player.position.x = -95;
+                if (player.position.z > 95) player.position.z = 95; if (player.position.z < -95) player.position.z = -95;
+
+                // Check Interactables (NPCs, Portals)
+                let canInteract = false;
+                const interactBtn = document.getElementById('interact-container');
+                const btnCore = document.getElementById('interact-btn');
+                
+                entities.forEach(ent => {
+                    if (ent.type === 'portal') {
+                        ent.mesh.rotation.y += 1 * dt; // Spin portal
+                        ent.mesh.rotation.z += 0.5 * dt;
+                    }
+                    
+                    if (player.position.distanceTo(ent.mesh.position) < 4.0) {
+                        canInteract = true;
+                        interactBtn.classList.remove('hidden');
+                        if (ent.type === 'merchant') btnCore.innerHTML = "💰 คุยกับพ่อค้า (SHOP)";
+                        else if (ent.type === 'quest') btnCore.innerHTML = "📜 คุยกับผู้ใหญ่บ้าน";
+                        else if (ent.type === 'portal') btnCore.innerHTML = "🌌 วาร์ป (WARP)";
+                        
+                        btnCore.onclick = ent.interact;
+                    }
+                });
+                
+                if (!canInteract) interactBtn.classList.add('hidden');
+
+                // Update Monsters (Cute bouncing effect)
+                monsters.forEach(monster => {
+                    const type = monster.mesh.userData.type || 'slime';
+                    const speed = monster.mesh.userData.bounceSpeed || 5;
+                    
+                    if (type === 'slime') {
+                        // Slime jumps up and down
+                        monster.mesh.position.y = Math.abs(Math.sin(Date.now() * 0.001 * speed)) * 0.5;
+                    } else if (type === 'cactus') {
+                        // Cactus wobbles left and right
+                        monster.mesh.rotation.z = Math.sin(Date.now() * 0.001 * speed) * 0.15;
+                    } else if (type === 'golem') {
+                        // Golem breathes heavily/shrugs
+                        monster.mesh.scale.y = 1.0 + Math.sin(Date.now() * 0.001 * speed) * 0.05;
+                    }
+
+                    // Collision with Player
+                    if(player.position.distanceTo(monster.mesh.position) < 2.5) {
+                        openBattleQuiz(monster);
+                    }
+
+                    // Hit flash tick countdown
+                    if (monster.hitFlashTicks > 0) {
+                        monster.hitFlashTicks--;
+                        // Make material glow red/white
+                        monster.mesh.traverse(child => {
+                            if (child.isMesh && child.material && child.material.emissive) {
+                                child.material.emissive.setHex(0xff3333);
+                            }
+                        });
+                    } else {
+                        // Restore material emissive
+                        monster.mesh.traverse(child => {
+                            if (child.isMesh && child.material && child.material.emissive) {
+                                child.material.emissive.setHex(0x000000);
+                            }
+                        });
+                    }
+                });
+
+                // Check Items
+                for(let i = items.length - 1; i >= 0; i--) {
+                    const item = items[i];
+                    item.mesh.rotation.y += 2 * dt;
+                    item.mesh.position.y = item.baseY + Math.sin(Date.now() * 0.003 + item.mesh.id) * 0.2;
+                    
+                    if(player.position.distanceTo(item.mesh.position) < 2.0) {
+                        playSound('item');
+                        scene.remove(item.mesh);
+                        items.splice(i, 1);
+                        
+                        if(item.type === 'sword') { 
+                            playerStats.atk += 2; 
+                            showFloatingText("+2 ATK ⚔️", "#ffea00", player.position); 
+                            equipVisualWeapon('sword');
+                        }
+                        else if(item.type === 'shield') { 
+                            playerStats.def += 1; 
+                            showFloatingText("+1 DEF 🛡️", "#00bbff", player.position); 
+                            equipVisualWeapon('shield');
+                        }
+                        else if(item.type === 'helmet') { 
+                            playerStats.def += 1; 
+                            showFloatingText("+1 DEF & หมวกไฟฉาย 💡", "#ffff00", player.position); 
+                            equipVisualWeapon('helmet');
+                        }
+                        else if(item.type === 'potion') { 
+                            playerStats.hp = Math.min(playerStats.maxHp, playerStats.hp + 30); 
+                            showFloatingText("+30 HP ❤️", "#22c55e", player.position); 
+                        }
+                        else if(item.type === 'coin') { 
+                            playerStats.gold += 10; 
+                            showFloatingText("+10 Gold 💰", "#ffd700", player.position); 
+                        }
+                        updateHUD();
+                    }
+                }
+
+                // Update particles
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    let p = particles[i];
+                    p.life -= dt;
+                    if (p.life <= 0) {
+                        scene.remove(p.mesh);
+                        particles.splice(i, 1);
+                        continue;
+                    }
+                    p.vy -= 18 * dt; // Gravity
+                    p.mesh.position.x += p.vx * dt;
+                    p.mesh.position.y += p.vy * dt;
+                    p.mesh.position.z += p.vz * dt;
+                    p.mesh.rotation.y += 2 * dt;
+                    p.mesh.material.transparent = true;
+                    p.mesh.material.opacity = p.life;
+                }
+
+                drawMinimap();
+            }
+
+            // Camera Update
+            camera.position.lerp(new THREE.Vector3(player.position.x, player.position.y + 10, player.position.z + 15), 0.1);
+            camera.lookAt(player.position);
+
+            // Update Name Tags
+            [...monsters, ...entities].forEach(obj => {
+                const tempV = new THREE.Vector3().copy(obj.mesh.position);
+                tempV.y += (obj.type === 'portal') ? 3 : 2; 
+                tempV.project(camera);
+                
+                if(tempV.z < 1) { 
+                    obj.tagElement.style.display = 'block';
+                    obj.tagElement.style.left = `${(tempV.x * .5 + .5) * window.innerWidth}px`;
+                    obj.tagElement.style.top = `${(tempV.y * -.5 + .5) * window.innerHeight}px`;
+                } else {
+                    obj.tagElement.style.display = 'none';
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        // Helper function to create Item Meshes in scene
+        function createItemMesh(type) {
+            const group = new THREE.Group();
+            if (type === 'sword') {
+                const blade = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.2, 0.4), new THREE.MeshLambertMaterial({color: 0xcccccc}));
+                blade.position.y = 0.8;
+                group.add(blade); group.scale.set(1.5, 1.5, 1.5);
+            } else if (type === 'shield') {
+                const board = new THREE.Mesh(new THREE.BoxGeometry(1, 1.2, 0.2), new THREE.MeshLambertMaterial({color: 0x4682B4}));
+                group.add(board); group.scale.set(1.2, 1.2, 1.2);
+            } else if (type === 'potion') {
+                const flask = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.5, 0.8, 8), new THREE.MeshLambertMaterial({color: 0xff3333}));
+                group.add(flask);
+            } else if (type === 'coin') {
+                const coin = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.1, 16), new THREE.MeshLambertMaterial({color: 0xffd700}));
+                coin.rotation.x = Math.PI / 2;
+                group.add(coin);
+            } else if (type === 'helmet') {
+                // ตัวแทนไอเทมดรอปหมวกสีเหลืองในแผนที่
+                const helmetDrop = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 0.6), new THREE.MeshLambertMaterial({color: 0xFFD700}));
+                helmetDrop.position.y = 0.2;
+                group.add(helmetDrop);
+            }
+            return group;
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize HUD
+        updateHUD();
+        animate();
+
+    </script>
+</body>
+</html>
