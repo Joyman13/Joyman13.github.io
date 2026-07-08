@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Voxel MMORPG - Ultimate</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/"
+            }
+        }
+    </script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        canvas { display: block; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .interactive { pointer-events: auto; }
+        #chat-box::-webkit-scrollbar { width: 6px; }
+        #chat-box::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 3px; }
+        
+        /* Hotbar Style */
+        .block-btn {
+            width: 44px; height: 44px; border: 2px solid rgba(255,255,255,0.3); border-radius: 8px;
+            cursor: pointer; transition: all 0.1s; background-size: cover; background-position: center;
+            position: relative; display: flex; align-items: flex-end; justify-content: flex-end; padding: 2px 4px;
+            font-size: 12px; font-weight: bold; color: white; text-shadow: 1px 1px 0 #000;
+        }
+        .block-btn.active { border-color: #fff; transform: scale(1.1); box-shadow: 0 0 10px rgba(255,255,255,0.5); z-index: 10; }
+        .block-btn:hover { border-color: rgba(255,255,255,0.8); }
+        
+        /* Crosshair */
+        #crosshair {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: rgba(255, 255, 255, 0.7); font-size: 24px; font-weight: 300; pointer-events: none;
+            text-shadow: 0 0 2px #000;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer" class="flex flex-col justify-between p-4">
+        <!-- Top UI -->
+        <div class="flex justify-between items-start">
+            <div class="bg-black/60 text-white p-3 rounded-xl backdrop-blur-sm border border-white/10 shadow-xl">
+                <h1 class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400 mb-1">Voxel Realms MMO</h1>
+                <p class="text-sm text-gray-300">เชื่อมต่อแล้ว: <span id="player-count" class="text-emerald-400 font-bold">1</span> คน</p>
+            </div>
+            
+            <div class="text-right">
+                <p class="text-sm bg-black/60 text-white p-3 rounded-xl backdrop-blur-sm border border-white/10 shadow-xl leading-relaxed text-left inline-block">
+                    <strong>W A S D</strong> : เคลื่อนที่<br>
+                    <strong>Space</strong> : กระโดด / ว่ายน้ำ<br>
+                    <strong>Shift</strong> : วิ่ง (ค้างไว้)<br>
+                    <strong>คลิกซ้าย</strong> : ทำลายบล็อก<br>
+                    <strong>คลิกขวา</strong> : วางบล็อก<br>
+                    <strong>Enter</strong> : พิมพ์แชท<br>
+                    <strong>Esc</strong> : ปลดล็อกเมาส์
+                </p>
+            </div>
+        </div>
+
+        <!-- Crosshair -->
+        <div id="crosshair">+</div>
+
+        <!-- Chat UI -->
+        <div class="absolute bottom-20 left-4 w-80 interactive">
+            <div id="chat-box" class="h-48 overflow-y-auto mb-2 text-sm text-white drop-shadow-md space-y-1 flex flex-col justify-end pb-2">
+                <!-- Chat messages will appear here -->
+            </div>
+            <input type="text" id="chat-input" class="w-full bg-black/50 border border-white/20 text-white rounded-lg px-3 py-2 outline-none focus:bg-black/80 transition-all opacity-0 pointer-events-none" placeholder="พิมพ์ข้อความแล้วกด Enter...">
+        </div>
+
+        <!-- Bottom UI (Hotbar) -->
+        <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-1 bg-black/50 p-2 rounded-xl backdrop-blur-md interactive shadow-2xl border border-white/10">
+            <div class="block-btn active" data-type="1" style="background-color: #4ade80;">1</div> <!-- Grass -->
+            <div class="block-btn" data-type="2" style="background-color: #8b5a2b;">2</div> <!-- Dirt -->
+            <div class="block-btn" data-type="3" style="background-color: #9ca3af;">3</div> <!-- Stone -->
+            <div class="block-btn" data-type="8" style="background-color: #5c4033;">4</div> <!-- Wood -->
+            <div class="block-btn" data-type="7" style="background-color: #228b22;">5</div> <!-- Leaves -->
+            <div class="block-btn" data-type="4" style="background-color: #f87171;">6</div> <!-- Brick -->
+            <div class="block-btn" data-type="5" style="background-color: #a5f3fc; opacity: 0.8;">7</div> <!-- Glass -->
+            <div class="block-btn" data-type="6" style="background-color: #3b82f6; opacity: 0.8;">8</div> <!-- Water -->
+        </div>
+    </div>
+
+    <!-- Start Menu -->
+    <div id="start-menu" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm interactive">
+        <div class="bg-gray-900 border border-gray-700 p-8 rounded-2xl text-center shadow-2xl max-w-md w-full">
+            <h2 class="text-3xl font-bold text-white mb-2">Voxel Realms</h2>
+            <p class="text-gray-400 mb-6">คลิกหน้าจอเพื่อล็อคเมาส์และเข้าสู่เกม<br><span class="text-xs text-yellow-500">* หากกด Esc ต้องรอ 1 วินาทีถึงจะเข้าเกมใหม่ได้</span></p>
+            <button id="start-btn" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-8 rounded-xl transition-transform hover:scale-105 active:scale-95 shadow-lg shadow-emerald-500/30">
+                คลิกเพื่อเล่น (เข้าสู่โลก)
+            </button>
+        </div>
+    </div>
+
+    <!-- Firebase & Three.js Libraries -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot, query, deleteDoc, addDoc, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+        // --- Firebase Setup ---
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'voxel-mmo-proto';
+        
+        let userId = null;
+        const otherPlayers = {};
+
+        // --- Sound Setup (Tone.js) ---
+        const synth = new window.Tone.PolySynth(window.Tone.Synth, {
+            oscillator: { type: "square" },
+            envelope: { attack: 0.01, decay: 0.1, sustain: 0.0, release: 0.1 }
+        }).toDestination();
+        synth.volume.value = -15;
+
+        const noiseSynth = new window.Tone.NoiseSynth({
+            noise: { type: "brown" },
+            envelope: { attack: 0.01, decay: 0.1, sustain: 0 }
+        }).toDestination();
+        noiseSynth.volume.value = -20;
+
+        function playSound(type) {
+            if (window.Tone.context.state !== 'running') return;
+            if (type === 'jump') synth.triggerAttackRelease("C3", "16n");
+            if (type === 'place') synth.triggerAttackRelease("G3", "32n");
+            if (type === 'break') noiseSynth.triggerAttackRelease("16n");
+            if (type === 'splash') noiseSynth.triggerAttackRelease("8n");
+        }
+
+        // --- Three.js Setup & World Gen ---
+        let camera, scene, renderer, controls;
+        let blocks = new Map();
+        let worldGroup;
+        const blockSize = 1;
+
+        // Day/Night & Visuals
+        let dayTime = 8;
+        let dirLight;
+        let skyColor = new THREE.Color();
+        let highlightBox;
+        let handBlock;
+        const particles = [];
+        let currentBlockType = 1;
+
+        // Procedural Textures Function
+        function createPixelTexture(type) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 16; canvas.height = 16;
+            const context = canvas.getContext('2d');
+            
+            for (let i = 0; i < 16; i++) {
+                for (let j = 0; j < 16; j++) {
+                    let r, g, b;
+                    let noise = Math.random() * 20 - 10;
+                    
+                    if (type === 1) { // Grass
+                        if (j < 4) { r = 80 + noise; g = 200 + noise; b = 80 + noise; } // top
+                        else { r = 120 + noise; g = 80 + noise; b = 40 + noise; } // dirt
+                    } else if (type === 2) { // Dirt
+                        r = 120 + noise; g = 80 + noise; b = 40 + noise;
+                    } else if (type === 3) { // Stone
+                        r = g = b = 150 + noise;
+                    } else if (type === 4) { // Brick
+                        if (i % 8 === 0 || j % 4 === 0) { r = 200; g = 200; b = 200; } // mortar
+                        else { r = 180 + noise; g = 60 + noise; b = 40 + noise; } // brick
+                    } else if (type === 5) { // Glass
+                        if (i === 0 || i === 15 || j === 0 || j === 15) { r = 200; g = 255; b = 255; } // frame
+                        else if (i === j) { r = 255; g = 255; b = 255; } // glare
+                        else { r = 180; g = 230; b = 255; } // glass
+                    } else if (type === 6) { // Water
+                        r = 50 + noise; g = 100 + noise; b = 220 + noise;
+                    } else if (type === 7) { // Leaves
+                        r = 40 + noise; g = 150 + noise; b = 40 + noise;
+                        if (Math.random() > 0.7) { r = g = b = 0; context.globalAlpha = 0; } // holes
+                    } else if (type === 8) { // Wood Log
+                        if (j === 0 || j === 15) { r = 200 + noise; g = 170 + noise; b = 130 + noise; } // top/bottom ring
+                        else { r = 90 + noise; g = 60 + noise; b = 30 + noise; } // bark
+                    }
+                    
+                    context.fillStyle = `rgb(${r},${g},${b})`;
+                    if(context.globalAlpha !== 0) context.fillRect(i, j, 1, 1);
+                    context.globalAlpha = 1.0;
+                }
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.magFilter = THREE.NearestFilter;
+            return tex;
+        }
+
+        const materials = {};
+        
+        function initGame() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 15, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+
+            // Materials
+            materials[1] = new THREE.MeshLambertMaterial({ map: createPixelTexture(1) });
+            materials[2] = new THREE.MeshLambertMaterial({ map: createPixelTexture(2) });
+            materials[3] = new THREE.MeshLambertMaterial({ map: createPixelTexture(3) });
+            materials[4] = new THREE.MeshLambertMaterial({ map: createPixelTexture(4) });
+            materials[5] = new THREE.MeshLambertMaterial({ map: createPixelTexture(5), transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+            materials[6] = new THREE.MeshLambertMaterial({ map: createPixelTexture(6), transparent: true, opacity: 0.7, side: THREE.DoubleSide }); // Water
+            materials[7] = new THREE.MeshLambertMaterial({ map: createPixelTexture(7), transparent: true, opacity: 0.9, side: THREE.DoubleSide }); // Leaves
+            materials[8] = new THREE.MeshLambertMaterial({ map: createPixelTexture(8) }); // Log
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+
+            dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(50, 100, 50);
+            dirLight.castShadow = true;
+            dirLight.shadow.camera.left = -50; dirLight.shadow.camera.right = 50;
+            dirLight.shadow.camera.top = 50; dirLight.shadow.camera.bottom = -50;
+            scene.add(dirLight);
+
+            worldGroup = new THREE.Group();
+            scene.add(worldGroup);
+
+            // Block Highlight
+            const hlGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.01, 1.01, 1.01));
+            const hlMat = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.4 });
+            highlightBox = new THREE.LineSegments(hlGeo, hlMat);
+            highlightBox.visible = false;
+            scene.add(highlightBox);
+
+            // Hand Block
+            handBlock = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), materials[1]);
+            handBlock.position.set(0.4, -0.3, -0.6);
+            handBlock.rotation.set(0, -Math.PI / 6, 0);
+            camera.add(handBlock);
+            scene.add(camera);
+
+            generateWorld();
+
+            // Controls Setup
+            controls = new PointerLockControls(camera, document.body);
+            const startMenu = document.getElementById('start-menu');
+            const startBtn = document.getElementById('start-btn');
+            
+            let lockCooldown = false;
+
+            startBtn.addEventListener('click', async () => {
+                if (lockCooldown) return;
+                await window.Tone.start();
+                controls.lock();
+            });
+
+            controls.addEventListener('lock', () => {
+                startMenu.style.display = 'none';
+                document.getElementById('chat-input').style.opacity = '0';
+                document.getElementById('chat-input').style.pointerEvents = 'none';
+                document.getElementById('chat-input').blur();
+            });
+
+            controls.addEventListener('unlock', () => {
+                startMenu.style.display = 'flex';
+                // Cooldown to prevent SecurityError from rapid locking
+                lockCooldown = true;
+                startBtn.innerHTML = "กำลังเตรียมระบบ... (รอ 1 วินาที)";
+                startBtn.classList.replace('bg-emerald-500', 'bg-gray-500');
+                setTimeout(() => {
+                    lockCooldown = false;
+                    startBtn.innerHTML = "คลิกเพื่อกลับเข้าเกม";
+                    startBtn.classList.replace('bg-gray-500', 'bg-emerald-500');
+                }, 1250);
+            });
+
+            // UI Setup
+            setupUI();
+
+            window.addEventListener('resize', onWindowResize, false);
+            
+            // Start Loop
+            requestAnimationFrame(animate);
+        }
+
+        function setupUI() {
+            // Hotbar selection
+            const setBlockType = (type) => {
+                document.querySelectorAll('.block-btn').forEach(b => b.classList.remove('active'));
+                const btn = document.querySelector(`.block-btn[data-type="${type}"]`);
+                if(btn) btn.classList.add('active');
+                currentBlockType = type;
+                if(handBlock) handBlock.material = materials[type];
+            };
+
+            document.querySelectorAll('.block-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    setBlockType(parseInt(btn.dataset.type));
+                });
+            });
+
+            // Keyboard keys for hotbar
+            document.addEventListener('keydown', (e) => {
+                if (document.activeElement === document.getElementById('chat-input')) return;
+                if (e.key >= '1' && e.key <= '8') {
+                    setBlockType(parseInt(e.key));
+                }
+            });
+
+            // Chat Input Logic
+            const chatInput = document.getElementById('chat-input');
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'Enter') {
+                    if (controls.isLocked) {
+                        controls.unlock();
+                        setTimeout(() => {
+                            chatInput.style.opacity = '1';
+                            chatInput.style.pointerEvents = 'auto';
+                            chatInput.focus();
+                        }, 100);
+                    } else if (document.activeElement === chatInput) {
+                        if (chatInput.value.trim() !== '') {
+                            sendChat(chatInput.value.trim());
+                            chatInput.value = '';
+                        }
+                    }
+                }
+            });
+        }
+
+        function generateWorld() {
+            const size = 40;
+            const center = size / 2;
+            for (let x = 0; x < size; x++) {
+                for (let z = 0; z < size; z++) {
+                    const dX = x - center; const dZ = z - center;
+                    const height = Math.floor(Math.sin(x * 0.2) * 3 + Math.cos(z * 0.2) * 3) + 5;
+                    
+                    for (let y = 0; y <= height; y++) {
+                        let type = 3; // stone
+                        if (y === height) type = 1; // grass
+                        else if (y > height - 3) type = 2; // dirt
+                        addBlockMesh(dX, y, dZ, type, false);
+                    }
+                    
+                    // Add some water lakes
+                    if (height < 3) {
+                        for(let y = height + 1; y <= 3; y++) {
+                            addBlockMesh(dX, y, dZ, 6, false);
+                        }
+                    }
+                    
+                    // Trees
+                    if (height > 5 && Math.random() < 0.02) {
+                        for(let ty = 1; ty <= 4; ty++) addBlockMesh(dX, height + ty, dZ, 8, false); // Log
+                        for(let lx = -2; lx <= 2; lx++) {
+                            for(let lz = -2; lz <= 2; lz++) {
+                                if (Math.abs(lx)===2 && Math.abs(lz)===2) continue;
+                                addBlockMesh(dX + lx, height + 4, dZ + lz, 7, false); // Leaves layer 1
+                                if (Math.abs(lx)<=1 && Math.abs(lz)<=1) {
+                                    addBlockMesh(dX + lx, height + 5, dZ + lz, 7, false); // Leaves layer 2
+                                }
+                            }
+                        }
+                        addBlockMesh(dX, height + 6, dZ, 7, false); // Leaves top
+                    }
+                }
+            }
+        }
+
+        function getBlockKey(x, y, z) {
+            return `${Math.round(x)},${Math.round(y)},${Math.round(z)}`;
+        }
+
+        function addBlockMesh(x, y, z, type, sync = true) {
+            const key = getBlockKey(x, y, z);
+            if (blocks.has(key)) return;
+
+            const block = new THREE.Mesh(new THREE.BoxGeometry(blockSize, blockSize, blockSize), materials[type]);
+            block.position.set(x, y, z);
+            block.castShadow = (type !== 5 && type !== 6 && type !== 7); // Transparents don't cast strong shadow
+            block.receiveShadow = true;
+            
+            worldGroup.add(block);
+            blocks.set(key, { mesh: block, type: type });
+
+            if (sync) {
+                syncBlock(Math.round(x), Math.round(y), Math.round(z), type, 'place');
+                playSound(type === 6 ? 'splash' : 'place');
+            }
+        }
+
+        function removeBlockMesh(x, y, z, sync = true) {
+            const key = getBlockKey(x, y, z);
+            if (!blocks.has(key)) return;
+
+            const block = blocks.get(key);
+            worldGroup.remove(block.mesh);
+            block.mesh.geometry.dispose();
+            blocks.delete(key);
+
+            if (sync) {
+                syncBlock(Math.round(x), Math.round(y), Math.round(z), 0, 'break');
+                playSound(block.type === 6 ? 'splash' : 'break');
+            }
+
+            // Particles
+            const mat = materials[block.type];
+            for (let i = 0; i < 6; i++) {
+                const p = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), mat);
+                p.position.set(x + (Math.random() - 0.5) * 0.5, y + (Math.random() - 0.5) * 0.5, z + (Math.random() - 0.5) * 0.5);
+                p.velocity = new THREE.Vector3((Math.random() - 0.5) * 5, Math.random() * 5 + 2, (Math.random() - 0.5) * 5);
+                p.life = 1.0 + Math.random() * 0.5;
+                scene.add(p);
+                particles.push(p);
+            }
+        }
+
+        // --- Interaction & Physics ---
+        const raycaster = new THREE.Raycaster();
+        const centerPoint = new THREE.Vector2(0, 0);
+
+        document.addEventListener('mousedown', (event) => {
+            if (!controls.isLocked) return;
+            raycaster.setFromCamera(centerPoint, camera);
+            const intersects = raycaster.intersectObjects(worldGroup.children, false);
+
+            if (intersects.length > 0) {
+                const intersect = intersects[0];
+                if (intersect.distance > 6) return; // Max reach range
+
+                const pos = intersect.object.position;
+                if (event.button === 0) {
+                    // Left Click: Break
+                    removeBlockMesh(pos.x, pos.y, pos.z);
+                } else if (event.button === 2) {
+                    // Right Click: Place
+                    const normal = intersect.face.normal;
+                    const newPos = pos.clone().add(normal);
+                    
+                    // Don't place inside player
+                    const playerPos = camera.position.clone();
+                    if (Math.abs(newPos.x - playerPos.x) < 0.8 && Math.abs(newPos.z - playerPos.z) < 0.8 && newPos.y > playerPos.y - 2 && newPos.y < playerPos.y + 0.5) {
+                        return; 
+                    }
+                    addBlockMesh(newPos.x, newPos.y, newPos.z, currentBlockType);
+                }
+            }
+        });
+
+        function onWindowResize() {
+            if (!camera || !renderer) return;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Movement Physics Variables
+        const velocity = new THREE.Vector3();
+        const direction = new THREE.Vector3();
+        let moveState = { f: false, b: false, l: false, r: false, space: false };
+        let canJump = false;
+        
+        const walkSpeed = 50.0;
+        const runSpeed = 90.0;
+        const jumpVelocity = 9.0;
+        const gravity = 28.0;
+        let isRunning = false;
+        
+        document.addEventListener('keydown', (e) => {
+            if (document.activeElement === document.getElementById('chat-input')) return;
+            switch (e.code) {
+                case 'KeyW': moveState.f = true; break;
+                case 'KeyA': moveState.l = true; break;
+                case 'KeyS': moveState.b = true; break;
+                case 'KeyD': moveState.r = true; break;
+                case 'ShiftLeft': case 'ShiftRight': isRunning = true; break;
+                case 'Space': 
+                    moveState.space = true;
+                    if (canJump && controls.isLocked) {
+                        velocity.y = jumpVelocity;
+                        canJump = false;
+                        playSound('jump');
+                    }
+                    break;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            switch (e.code) {
+                case 'KeyW': moveState.f = false; break;
+                case 'KeyA': moveState.l = false; break;
+                case 'KeyS': moveState.b = false; break;
+                case 'KeyD': moveState.r = false; break;
+                case 'ShiftLeft': case 'ShiftRight': isRunning = false; break;
+                case 'Space': moveState.space = false; break;
+            }
+        });
+
+        function checkCollision(pos, buffer = 0.3) {
+            const checkY = [Math.round(pos.y), Math.round(pos.y + 1)];
+            for (let y of checkY) {
+                const keys = [
+                    getBlockKey(pos.x + buffer, y, pos.z + buffer),
+                    getBlockKey(pos.x - buffer, y, pos.z + buffer),
+                    getBlockKey(pos.x + buffer, y, pos.z - buffer),
+                    getBlockKey(pos.x - buffer, y, pos.z - buffer)
+                ];
+                for (let key of keys) {
+                    if (blocks.has(key) && blocks.get(key).type !== 6 && blocks.get(key).type !== 5) {
+                        // Ignore collision for Water(6) and Glass(5 is debatable, let's say solid, but water is def not solid)
+                        if (blocks.get(key).type !== 6) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        let prevTime = performance.now();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (!userId) return;
+
+            const time = performance.now();
+            const delta = (time - prevTime) / 1000;
+            prevTime = time;
+
+            // Day/Night Cycle
+            dayTime += delta * 0.2; // Speed of day
+            if (dayTime > 24) dayTime = 0;
+            
+            // Sky & Light Color logic based on time
+            let sunIntensity = 0;
+            if (dayTime > 6 && dayTime < 18) { // Day
+                const t = (dayTime - 6) / 12; // 0 to 1
+                sunIntensity = Math.sin(t * Math.PI);
+                skyColor.setHSL(0.55, 0.8, 0.5 + sunIntensity * 0.3); // Blue sky
+                dirLight.color.setHSL(0.1, 0.2, 0.8 + sunIntensity * 0.2); // Sun light
+                dirLight.position.set(Math.cos(t * Math.PI) * 100, Math.sin(t * Math.PI) * 100, 50);
+            } else { // Night
+                skyColor.setHSL(0.6, 0.8, 0.05); // Dark blue sky
+                dirLight.color.setHSL(0.6, 0.2, 0.2); // Moon light
+                sunIntensity = 0.1; // dim
+                dirLight.position.set(0, 50, 0);
+            }
+            scene.background = skyColor;
+            dirLight.intensity = sunIntensity * 0.8 + 0.2;
+
+            if (controls.isLocked) {
+                // Water Physics Check
+                const headY = Math.round(camera.position.y);
+                const feetY = Math.round(camera.position.y - 1.0);
+                const headBlock = blocks.get(getBlockKey(camera.position.x, headY, camera.position.z));
+                const feetBlock = blocks.get(getBlockKey(camera.position.x, feetY, camera.position.z));
+                const inWater = (headBlock && headBlock.type === 6) || (feetBlock && feetBlock.type === 6);
+
+                if (inWater) {
+                    scene.fog = new THREE.FogExp2(0x3b82f6, 0.15); // Underwater fog
+                    velocity.y -= gravity * 0.1 * delta; // Low gravity
+                    if (moveState.space) velocity.y = 4.0; // Swim up
+                    if (velocity.y < -4.0) velocity.y = -4.0; // Terminal velocity water
+                } else {
+                    scene.fog = null; // Clear fog
+                    velocity.y -= gravity * delta;
+                }
+
+                velocity.x -= velocity.x * 10.0 * delta;
+                velocity.z -= velocity.z * 10.0 * delta;
+
+                direction.z = Number(moveState.f) - Number(moveState.b);
+                direction.x = Number(moveState.r) - Number(moveState.l);
+                direction.normalize();
+
+                let currentSpeed = isRunning ? runSpeed : walkSpeed;
+                if (inWater) currentSpeed *= 0.6; // Slower in water
+
+                if (moveState.f || moveState.b) velocity.z -= direction.z * currentSpeed * delta;
+                if (moveState.l || moveState.r) velocity.x -= direction.x * currentSpeed * delta;
+
+                const nextPos = camera.position.clone();
+                controls.moveRight(-velocity.x * delta);
+                controls.moveForward(-velocity.z * delta);
+
+                // Horizontal Collision
+                if (checkCollision(new THREE.Vector3(camera.position.x, camera.position.y - 1.5, camera.position.z), 0.3)) {
+                    camera.position.x = nextPos.x;
+                    camera.position.z = nextPos.z;
+                }
+
+                // Vertical Movement
+                camera.position.y += velocity.y * delta;
+                
+                // Ground Collision
+                const playerFeetY = camera.position.y - 1.5; 
+                const blockBelowY = Math.round(playerFeetY - 0.5); 
+                const blockBelowKey = getBlockKey(camera.position.x, blockBelowY, camera.position.z);
+                const blockBelow = blocks.get(blockBelowKey);
+                
+                if (velocity.y <= 0 && blockBelow && blockBelow.type !== 6) {
+                    const blockTop = blockBelowY + 0.5;
+                    if (playerFeetY < blockTop) { 
+                        camera.position.y = blockTop + 1.5; 
+                        velocity.y = 0;
+                        canJump = true;
+                    } else {
+                        canJump = false;
+                    }
+                } else if (camera.position.y < -30) {
+                    // Respawn
+                    velocity.y = 0;
+                    camera.position.set(0, 15, 0);
+                } else {
+                    canJump = false;
+                }
+
+                // Head Collision Check
+                if (velocity.y > 0) {
+                    const headHitY = camera.position.y + 0.2;
+                    const blockAboveY = Math.round(headHitY + 0.5);
+                    const blockAboveKey = getBlockKey(camera.position.x, blockAboveY, camera.position.z);
+                    const blockAbove = blocks.get(blockAboveKey);
+                    if (blockAbove && blockAbove.type !== 6) {
+                        const blockBottom = blockAboveY - 0.5;
+                        if (headHitY > blockBottom) {
+                            camera.position.y = blockBottom - 0.2;
+                            velocity.y = 0;
+                        }
+                    }
+                }
+
+                // Sync Position
+                const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+                euler.setFromQuaternion(camera.quaternion);
+                syncPosition(camera.position.x, camera.position.y - 0.9, camera.position.z, euler.y, euler.x);
+            }
+
+            // Update Highlight Box
+            if (controls.isLocked) {
+                raycaster.setFromCamera(centerPoint, camera);
+                const intersects = raycaster.intersectObjects(worldGroup.children, false);
+                if (intersects.length > 0 && intersects[0].distance <= 6) {
+                    highlightBox.position.copy(intersects[0].object.position);
+                    highlightBox.visible = true;
+                } else {
+                    highlightBox.visible = false;
+                }
+            } else {
+                highlightBox.visible = false;
+            }
+
+            // Hand Block Bobbing Animation
+            if (handBlock && controls.isLocked) {
+                const isMoving = moveState.f || moveState.b || moveState.l || moveState.r;
+                if (isMoving && canJump) { 
+                    const speedMult = isRunning ? 1.5 : 1.0;
+                    handBlock.position.y = -0.3 + Math.sin(time * 0.01 * speedMult) * 0.03;
+                    handBlock.position.x = 0.4 + Math.cos(time * 0.005 * speedMult) * 0.015;
+                    handBlock.rotation.z = Math.sin(time * 0.01 * speedMult) * 0.05;
+                } else {
+                    handBlock.position.y += (-0.3 - handBlock.position.y) * 0.1;
+                    handBlock.position.x += (0.4 - handBlock.position.x) * 0.1;
+                    handBlock.rotation.z += (0 - handBlock.rotation.z) * 0.1;
+                }
+            }
+
+            // Update Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.velocity.y -= gravity * delta;
+                p.position.addScaledVector(p.velocity, delta);
+                p.life -= delta;
+                p.scale.setScalar(p.life);
+                if (p.life <= 0) {
+                    scene.remove(p);
+                    p.geometry.dispose();
+                    particles.splice(i, 1);
+                }
+            }
+
+            // Update Other Players Rotation
+            Object.values(otherPlayers).forEach(p => {
+                if (p.targetPos) p.group.position.lerp(p.targetPos, 0.2);
+                if (p.targetRotY) p.group.rotation.y = p.targetRotY;
+                if (p.head && p.targetRotX) p.head.rotation.x = p.targetRotX;
+                if (p.nameTag) p.nameTag.lookAt(camera.position);
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        // --- Firebase Integration (Strict Rules Applied) ---
+        
+        async function initMultiplayer() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Auth Error:", error);
+            }
+        }
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                userId = user.uid;
+                setupFirebaseListeners();
+                initGame();
+            }
+        });
+
+        function setupFirebaseListeners() {
+            if (!userId) return;
+
+            // 1. Sync Positions
+            const playersRef = collection(db, 'artifacts', appId, 'public', 'data', 'players');
+            onSnapshot(playersRef, (snapshot) => {
+                let count = 0;
+                snapshot.docChanges().forEach((change) => {
+                    const data = change.doc.data();
+                    const id = change.doc.id;
+                    
+                    if (id !== userId) {
+                        if (change.type === 'added' || change.type === 'modified') {
+                            updateOtherPlayer(id, data.x, data.y, data.z, data.rotY, data.rotX);
+                        }
+                        if (change.type === 'removed') {
+                            removeOtherPlayer(id);
+                        }
+                    }
+                });
+                document.getElementById('player-count').innerText = snapshot.docs.length;
+            }, (err) => console.error(err));
+
+            // 2. Sync Blocks
+            const blocksRef = collection(db, 'artifacts', appId, 'public', 'data', 'blocks');
+            onSnapshot(blocksRef, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    const data = change.doc.data();
+                    if (data.userId === userId) return; // Ignore our own actions
+
+                    if (change.type === 'added') {
+                        if (data.action === 'place') addBlockMesh(data.x, data.y, data.z, data.type, false);
+                        else if (data.action === 'break') removeBlockMesh(data.x, data.y, data.z, false);
+                    }
+                });
+            }, (err) => console.error(err));
+
+            // 3. Sync Chat
+            const chatsRef = collection(db, 'artifacts', appId, 'public', 'data', 'chats');
+            onSnapshot(chatsRef, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === 'added') {
+                        const data = change.doc.data();
+                        appendChatMessage(data.userId, data.text);
+                    }
+                });
+            }, (err) => console.error(err));
+        }
+
+        function syncPosition(x, y, z, rotY, rotX) {
+            if (!userId) return;
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'players', userId);
+            setDoc(docRef, { x, y, z, rotY, rotX, timestamp: serverTimestamp() }).catch(e => console.error(e));
+        }
+
+        function syncBlock(x, y, z, type, action) {
+            if (!userId) return;
+            const blocksRef = collection(db, 'artifacts', appId, 'public', 'data', 'blocks');
+            addDoc(blocksRef, { x, y, z, type, action, userId, timestamp: serverTimestamp() }).catch(e => console.error(e));
+        }
+
+        function sendChat(text) {
+            if (!userId || !text) return;
+            const chatsRef = collection(db, 'artifacts', appId, 'public', 'data', 'chats');
+            addDoc(chatsRef, { userId, text, timestamp: serverTimestamp() }).catch(e => console.error(e));
+        }
+
+        // Create Text Sprite for Nametags
+        function makeTextSprite(message) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.font = 'bold 32px sans-serif';
+            ctx.fillStyle = 'white';
+            ctx.textAlign = 'center';
+            ctx.fillText(message, 128, 42);
+            
+            const tex = new THREE.CanvasTexture(canvas);
+            const spriteMat = new THREE.SpriteMaterial({ map: tex });
+            const sprite = new THREE.Sprite(spriteMat);
+            sprite.scale.set(2, 0.5, 1);
+            return sprite;
+        }
+
+        function updateOtherPlayer(id, x, y, z, rotY, rotX) {
+            if (!otherPlayers[id]) {
+                const group = new THREE.Group();
+                
+                // Body
+                const bodyGeo = new THREE.BoxGeometry(0.8, 1.2, 0.4);
+                const bodyMat = new THREE.MeshLambertMaterial({ color: 0x3b82f6 }); // Blue shirt
+                const body = new THREE.Mesh(bodyGeo, bodyMat);
+                body.position.y = 0.6;
+                group.add(body);
+
+                // Head
+                const headGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+                const headMat = new THREE.MeshLambertMaterial({ color: 0xffdbac }); // Skin color
+                const head = new THREE.Mesh(headGeo, headMat);
+                head.position.y = 1.5;
+                group.add(head);
+
+                // Nametag
+                const shortId = id.substring(0, 5);
+                const nameTag = makeTextSprite(`Player-${shortId}`);
+                nameTag.position.y = 2.2;
+                group.add(nameTag);
+
+                scene.add(group);
+                otherPlayers[id] = { group, head, nameTag, targetPos: new THREE.Vector3(x, y, z) };
+            } else {
+                otherPlayers[id].targetPos.set(x, y, z);
+                otherPlayers[id].targetRotY = rotY;
+                otherPlayers[id].targetRotX = rotX;
+            }
+        }
+
+        function removeOtherPlayer(id) {
+            if (otherPlayers[id]) {
+                scene.remove(otherPlayers[id].group);
+                delete otherPlayers[id];
+            }
+        }
+
+        function appendChatMessage(senderId, text) {
+            const chatBox = document.getElementById('chat-box');
+            const msgEl = document.createElement('div');
+            const isMe = senderId === userId;
+            const name = isMe ? 'คุณ' : `Player-${senderId.substring(0, 5)}`;
+            const color = isMe ? 'text-emerald-300' : 'text-blue-300';
+            
+            msgEl.innerHTML = `<span class="${color} font-bold">[${name}]</span>: ${text}`;
+            chatBox.appendChild(msgEl);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            
+            // Limit messages
+            while(chatBox.children.length > 20) {
+                chatBox.removeChild(chatBox.firstChild);
+            }
+        }
+
+        // Start Auth Flow
+        initMultiplayer();
+
+    </script>
+</body>
+</html>
