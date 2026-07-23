@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Speaking Game - ฝึกพูดภาษาจีน</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Mitr:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <!-- MediaPipe Face Mesh -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            font-family: 'Mitr', sans-serif;
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%);
+            touch-action: none; /* Prevent scroll on mobile */
+        }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.45);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+        }
+
+        .meter-transition {
+            transition: width 0.5s ease-out, background-color 0.3s ease;
+        }
+
+        /* Vignette effect for wrong answer */
+        .vignette {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(circle, transparent 50%, rgba(0,0,0,0.7) 150%);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .vignette.active {
+            opacity: 1;
+        }
+        
+        /* Mirror video and canvas */
+        .mirror {
+            transform: scaleX(-1);
+        }
+        
+        .pulse-anim {
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden text-gray-800">
+
+    <!-- Error Message Box -->
+    <div id="errorOverlay" class="fixed inset-0 bg-black/80 z-50 hidden flex-col items-center justify-center p-6 text-center text-white">
+        <div class="glass-panel p-8 rounded-3xl max-w-md">
+            <h2 class="text-3xl font-bold text-red-500 mb-4">เกิดข้อผิดพลาด</h2>
+            <p id="errorMsg" class="text-lg">อุปกรณ์ของคุณไม่รองรับ หรือไม่ได้รับอนุญาตให้ใช้ไมค์/กล้อง</p>
+            <button onclick="location.reload()" class="mt-6 px-6 py-2 bg-white text-pink-500 rounded-full font-bold hover:bg-gray-100">โหลดใหม่</button>
+        </div>
+    </div>
+
+    <!-- Start Screen Overlay -->
+    <div id="startScreen" class="fixed inset-0 bg-gradient-to-br from-pink-300 to-orange-200 z-40 flex flex-col items-center justify-center p-4">
+        <div class="glass-panel p-10 rounded-3xl text-center max-w-lg shadow-2xl">
+            <div class="text-6xl mb-4">🐼</div>
+            <h1 class="text-4xl font-bold text-pink-600 mb-2">เกม AR ฝึกพูดภาษาจีน</h1>
+            <p class="text-gray-600 mb-8 text-lg">ส่องกล้อง ฟังเสียง แล้วพูดตามให้ชัดเจน!<br>ระบบต้องการอนุญาตใช้ <b>กล้อง</b> และ <b>ไมโครโฟน</b></p>
+            
+            <div class="mb-6">
+                <label for="setSelector" class="block text-pink-600 font-bold mb-2">เลือกระดับความยาก (1 = ง่ายสุด, 5 = ยากสุด):</label>
+                <select id="setSelector" class="w-full px-4 py-3 rounded-xl border-2 border-pink-300 focus:outline-none focus:border-pink-500 text-center text-lg font-medium text-gray-700 bg-white/90 shadow-sm">
+                    <option value="0">ด่านที่ 1 - ทักทายและสรรพนาม (ง่ายมาก)</option>
+                    <option value="1">ด่านที่ 2 - ครอบครัวและสัตว์ (ง่าย)</option>
+                    <option value="2">ด่านที่ 3 - ตัวเลขและสี (ปานกลาง)</option>
+                    <option value="3">ด่านที่ 4 - อาหารและการกระทำ (ยาก)</option>
+                    <option value="4">ด่านที่ 5 - ชีวิตประจำวัน (ยากมาก)</option>
+                </select>
+            </div>
+
+            <button id="startBtn" class="pulse-anim bg-gradient-to-r from-pink-500 to-orange-400 text-white text-2xl font-bold py-4 px-12 rounded-full shadow-lg hover:scale-105 transition-transform">
+                เริ่มเล่นเลย!
+            </button>
+            <p id="loadingText" class="text-sm text-pink-600 mt-4 hidden">กำลังเตรียมระบบกล้องและเสียง...</p>
+        </div>
+    </div>
+
+    <!-- End Screen Overlay -->
+    <div id="endScreen" class="fixed inset-0 bg-black/60 z-40 hidden flex-col items-center justify-center p-4 backdrop-blur-sm">
+        <div class="glass-panel p-10 rounded-3xl text-center max-w-lg shadow-2xl w-full">
+            <h1 class="text-5xl font-bold text-white mb-2" id="endTitle">ยอดเยี่ยม!</h1>
+            <p class="text-white/80 text-xl mb-6">คะแนนของคุณ</p>
+            <div class="text-7xl font-bold text-yellow-300 mb-8" id="finalScoreDisplay">10/10</div>
+            
+            <div class="flex flex-col gap-4">
+                <button id="restartBtn" class="bg-white text-pink-500 text-xl font-bold py-3 px-10 rounded-full shadow-lg hover:bg-pink-50 transition-colors">
+                    เล่นด่านเดิมซ้ำ (สลับคำใหม่)
+                </button>
+                <button onclick="location.reload()" class="bg-transparent border-2 border-white text-white text-xl font-bold py-3 px-10 rounded-full shadow-lg hover:bg-white/20 transition-colors">
+                    กลับหน้าเลือกระดับ
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Game Layout -->
+    <div class="flex flex-col md:flex-row h-full w-full">
+        
+        <!-- Left Panel: UI -->
+        <div class="w-full md:w-5/12 h-1/2 md:h-full p-4 md:p-8 flex flex-col relative z-20">
+            <div class="glass-panel flex-1 rounded-3xl p-6 flex flex-col justify-between shadow-lg border-white/50">
+                
+                <!-- Header: Progress & Score -->
+                <div class="flex justify-between items-center mb-4">
+                    <div class="bg-white/60 px-4 py-2 rounded-full font-bold text-pink-600 shadow-sm" id="progressText">ข้อ 1/10</div>
+                    <div class="bg-white/60 px-4 py-2 rounded-full font-bold text-orange-500 shadow-sm flex items-center gap-2">
+                        <span>⭐ คะแนน:</span>
+                        <span id="scoreText" class="text-xl">0</span>
+                    </div>
+                </div>
+
+                <!-- Main Game Area -->
+                <div class="flex flex-col items-center justify-center flex-1 text-center">
+                    
+                    <!-- Status Badge -->
+                    <div id="statusBadge" class="px-6 py-2 rounded-full text-white font-bold bg-gray-400 mb-6 transition-colors shadow-md">
+                        เตรียมตัว...
+                    </div>
+                    
+                    <!-- Vocabulary Display -->
+                    <div id="wordContainer" class="flex flex-col items-center justify-center">
+                        <h2 id="vocabChinese" class="text-7xl md:text-9xl font-bold text-gray-800 drop-shadow-sm mb-2">你好</h2>
+                        <h3 id="vocabPinyin" class="text-3xl text-pink-600 font-medium mb-1 tracking-widest">Nǐ hǎo</h3>
+                        <p id="vocabThai" class="text-xl text-gray-500 bg-white/50 px-6 py-1 rounded-full mt-2">สวัสดี</p>
+                    </div>
+
+                    <!-- Visual Feedback (Score/Similarity) -->
+                    <div id="feedbackText" class="text-2xl font-bold mt-6 h-8 text-transparent transition-colors"></div>
+                </div>
+
+                <!-- Bottom: Accuracy Meter -->
+                <div class="mt-4">
+                    <div class="flex justify-between text-sm font-bold text-gray-600 mb-1">
+                        <span>ความแม่นยำ</span>
+                        <span id="meterText">0%</span>
+                    </div>
+                    <div class="w-full bg-white/50 rounded-full h-6 border-2 border-white/60 overflow-hidden shadow-inner">
+                        <div id="accuracyMeter" class="bg-gray-300 h-full rounded-full meter-transition" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Camera Viewport -->
+        <div class="w-full md:w-7/12 h-1/2 md:h-full relative bg-gray-900 rounded-t-3xl md:rounded-l-3xl md:rounded-tr-none overflow-hidden shadow-2xl">
+            <!-- Video feed from camera -->
+            <video id="videoElement" class="absolute inset-0 w-full h-full object-cover mirror" playsinline autoplay muted></video>
+            <!-- Canvas for AR overlay -->
+            <canvas id="arCanvas" class="absolute inset-0 w-full h-full object-cover mirror"></canvas>
+            <!-- Vignette overlay for wrong answer -->
+            <div id="vignetteOverlay" class="vignette"></div>
+            
+            <!-- Loading indicator for MediaPipe -->
+            <div id="cameraLoading" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/80 text-white z-10">
+                <div class="animate-spin rounded-full h-12 w-12 border-4 border-pink-500 border-t-transparent mb-4"></div>
+                <p>กำลังเชื่อมต่อกล้องและ AI...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        
+        // --- 1. CONFIGURATION & STATE ---
+        const allVocabSets = [
+            // ด่านที่ 1 (ง่ายมาก) - ทักทาย, สรรพนาม
+            [
+                { chinese: '你好', pinyin: 'Nǐ hǎo', thai: 'สวัสดี' },
+                { chinese: '谢谢', pinyin: 'Xièxie', thai: 'ขอบคุณ' },
+                { chinese: '再见', pinyin: 'Zàijiàn', thai: 'ลาก่อน' },
+                { chinese: '我', pinyin: 'Wǒ', thai: 'ฉัน' },
+                { chinese: '你', pinyin: 'Nǐ', thai: 'คุณ' },
+                { chinese: '他', pinyin: 'Tā', thai: 'เขา' },
+                { chinese: '好', pinyin: 'Hǎo', thai: 'ดี' },
+                { chinese: '是', pinyin: 'Shì', thai: 'ใช่ / เป็น' },
+                { chinese: '不', pinyin: 'Bù', thai: 'ไม่' },
+                { chinese: '人', pinyin: 'Rén', thai: 'คน' }
+            ],
+            // ด่านที่ 2 (ง่าย) - ครอบครัว, สัตว์พื้นฐาน
+            [
+                { chinese: '爸爸', pinyin: 'Bàba', thai: 'พ่อ' },
+                { chinese: '妈妈', pinyin: 'Māma', thai: 'แม่' },
+                { chinese: '哥哥', pinyin: 'Gēge', thai: 'พี่ชาย' },
+                { chinese: '妹妹', pinyin: 'Mèimei', thai: 'น้องสาว' },
+                { chinese: '猫', pinyin: 'Māo', thai: 'แมว' },
+                { chinese: '狗', pinyin: 'Gǒu', thai: 'หมา' },
+                { chinese: '鸟', pinyin: 'Niǎo', thai: 'นก' },
+                { chinese: '鱼', pinyin: 'Yú', thai: 'ปลา' },
+                { chinese: '大', pinyin: 'Dà', thai: 'ใหญ่' },
+                { chinese: '小', pinyin: 'Xiǎo', thai: 'เล็ก' }
+            ],
+            // ด่านที่ 3 (ปานกลาง) - ตัวเลข, สี, ธรรมชาติ
+            [
+                { chinese: '一', pinyin: 'Yī', thai: 'หนึ่ง' },
+                { chinese: '二', pinyin: 'Èr', thai: 'สอง' },
+                { chinese: '三', pinyin: 'Sān', thai: 'สาม' },
+                { chinese: '红', pinyin: 'Hóng', thai: 'สีแดง' },
+                { chinese: '白', pinyin: 'Bái', thai: 'สีขาว' },
+                { chinese: '黑', pinyin: 'Hēi', thai: 'สีดำ' },
+                { chinese: '水', pinyin: 'Shuǐ', thai: 'น้ำ' },
+                { chinese: '火', pinyin: 'Huǒ', thai: 'ไฟ' },
+                { chinese: '天', pinyin: 'Tiān', thai: 'ท้องฟ้า' },
+                { chinese: '地', pinyin: 'Dì', thai: 'พื้นดิน' }
+            ],
+            // ด่านที่ 4 (ยาก) - อาหาร, กริยาการกระทำ
+            [
+                { chinese: '吃', pinyin: 'Chī', thai: 'กิน' },
+                { chinese: '喝', pinyin: 'Hē', thai: 'ดื่ม' },
+                { chinese: '水果', pinyin: 'Shuǐguǒ', thai: 'ผลไม้' },
+                { chinese: '苹果', pinyin: 'Píngguǒ', thai: 'แอปเปิ้ล' },
+                { chinese: '米饭', pinyin: 'Mǐfàn', thai: 'ข้าว' },
+                { chinese: '去', pinyin: 'Qù', thai: 'ไป' },
+                { chinese: '来', pinyin: 'Lái', thai: 'มา' },
+                { chinese: '看', pinyin: 'Kàn', thai: 'ดู' },
+                { chinese: '听', pinyin: 'Tīng', thai: 'ฟัง' },
+                { chinese: '喜欢', pinyin: 'Xǐhuān', thai: 'ชอบ' }
+            ],
+            // ด่านที่ 5 (ยากมาก) - ชีวิตประจำวัน, โรงเรียน
+            [
+                { chinese: '今天', pinyin: 'Jīntiān', thai: 'วันนี้' },
+                { chinese: '明天', pinyin: 'Míngtiān', thai: 'พรุ่งนี้' },
+                { chinese: '学校', pinyin: 'Xuéxiào', thai: 'โรงเรียน' },
+                { chinese: '老师', pinyin: 'Lǎoshī', thai: 'คุณครู' },
+                { chinese: '学生', pinyin: 'Xuéshēng', thai: 'นักเรียน' },
+                { chinese: '朋友', pinyin: 'Péngyǒu', thai: 'เพื่อน' },
+                { chinese: '电脑', pinyin: 'Diànnǎo', thai: 'คอมพิวเตอร์' },
+                { chinese: '衣服', pinyin: 'Yīfú', thai: 'เสื้อผ้า' },
+                { chinese: '漂亮', pinyin: 'Piàoliang', thai: 'สวย' },
+                { chinese: '快乐', pinyin: 'Kuàilè', thai: 'มีความสุข' }
+            ]
+        ];
+
+        let currentPlaySet = [];
+
+        let gameState = {
+            currentIndex: 0,
+            score: 0,
+            isPlaying: false,
+            currentResult: null // 'correct', 'wrong', null
+        };
+
+        let recognition = null;
+        let isListening = false;
+        let listeningTimeout = null;
+
+        // MediaPipe state
+        let faceLandmarks = null;
+        let isFaceMeshReady = false;
+
+        // DOM Elements
+        const DOM = {
+            startScreen: document.getElementById('startScreen'),
+            startBtn: document.getElementById('startBtn'),
+            setSelector: document.getElementById('setSelector'),
+            endScreen: document.getElementById('endScreen'),
+            restartBtn: document.getElementById('restartBtn'),
+            endTitle: document.getElementById('endTitle'),
+            finalScoreDisplay: document.getElementById('finalScoreDisplay'),
+            errorOverlay: document.getElementById('errorOverlay'),
+            errorMsg: document.getElementById('errorMsg'),
+            loadingText: document.getElementById('loadingText'),
+            cameraLoading: document.getElementById('cameraLoading'),
+            
+            progressText: document.getElementById('progressText'),
+            scoreText: document.getElementById('scoreText'),
+            vocabChinese: document.getElementById('vocabChinese'),
+            vocabPinyin: document.getElementById('vocabPinyin'),
+            vocabThai: document.getElementById('vocabThai'),
+            statusBadge: document.getElementById('statusBadge'),
+            feedbackText: document.getElementById('feedbackText'),
+            accuracyMeter: document.getElementById('accuracyMeter'),
+            meterText: document.getElementById('meterText'),
+            
+            video: document.getElementById('videoElement'),
+            canvas: document.getElementById('arCanvas'),
+            vignette: document.getElementById('vignetteOverlay')
+        };
+        const ctx = DOM.canvas.getContext('2d');
+
+        
+        // --- 2. AUDIO SYNTHESIZER ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playTone(freq, type, duration, vol=0.5) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        const Sound = {
+            click: () => playTone(600, 'sine', 0.1, 0.3),
+            tick: () => playTone(800, 'sine', 0.1, 0.4),
+            go: () => playTone(1200, 'sine', 0.3, 0.5),
+            correct: () => {
+                if(!audioCtx) return;
+                const now = audioCtx.currentTime;
+                [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => { // C5, E5, G5, C6 arpeggio
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0.3, now + i * 0.1);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.3);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now + i * 0.1);
+                    osc.stop(now + i * 0.1 + 0.3);
+                });
+            },
+            wrong: () => {
+                if(!audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.5);
+            },
+            warning: () => {
+                playTone(400, 'square', 0.2, 0.2);
+                setTimeout(() => playTone(400, 'square', 0.3, 0.2), 250);
+            },
+            fanfare: () => {
+                if(!audioCtx) return;
+                const now = audioCtx.currentTime;
+                const notes = [ [523.25, 0], [523.25, 0.15], [523.25, 0.3], [659.25, 0.45], [783.99, 0.6], [659.25, 0.75], [1046.50, 0.9] ];
+                notes.forEach(n => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.value = n[0];
+                    gain.gain.setValueAtTime(0.3, now + n[1]);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + n[1] + 0.2);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now + n[1]);
+                    osc.stop(now + n[1] + 0.2);
+                });
+            }
+        };
+
+
+        // --- 3. SPEECH RECOGNITION & TTS ---
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                showError("เบราว์เซอร์ของคุณไม่รองรับระบบสั่งงานด้วยเสียง (แนะนำ Google Chrome)");
+                return false;
+            }
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'zh-CN'; // Set to Chinese
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                clearTimeout(listeningTimeout);
+                evaluateAnswer(transcript);
+            };
+
+            recognition.onerror = (event) => {
+                if (event.error === 'no-speech' || event.error === 'aborted') {
+                    // Handled by timeout mostly
+                } else {
+                    console.error("Speech Recog Error:", event.error);
+                }
+            };
+            return true;
+        }
+
+        // Levenshtein distance for similarity
+        function getSimilarity(s1, s2) {
+            // Very simple exact or substring match boost for short words
+            if (s1 === s2) return 1.0;
+            if (s1.includes(s2) || s2.includes(s1)) return 0.9; 
+            
+            let longer = s1;
+            let shorter = s2;
+            if (s1.length < s2.length) { longer = s2; shorter = s1; }
+            let longerLength = longer.length;
+            if (longerLength == 0) return 1.0;
+            
+            let costs = new Array();
+            for (let i = 0; i <= longer.length; i++) {
+                let lastValue = i;
+                for (let j = 0; j <= shorter.length; j++) {
+                    if (i == 0) costs[j] = j;
+                    else {
+                        if (j > 0) {
+                            let newValue = costs[j - 1];
+                            if (longer.charAt(i - 1) != shorter.charAt(j - 1))
+                                newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+                            costs[j - 1] = lastValue;
+                            lastValue = newValue;
+                        }
+                    }
+                }
+                if (i > 0) costs[shorter.length] = lastValue;
+            }
+            return (longerLength - costs[shorter.length]) / parseFloat(longerLength);
+        }
+
+        function speakText(text, times, callback) {
+            let count = 0;
+            function speak() {
+                if(count >= times) { 
+                    if(callback) callback(); 
+                    return; 
+                }
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'zh-CN';
+                utterance.rate = 0.8; // Speak slightly slower for kids
+                utterance.onend = () => {
+                    count++;
+                    setTimeout(speak, 600); // Wait a bit before repeating
+                };
+                window.speechSynthesis.speak(utterance);
+            }
+            speak();
+        }
+
+
+        // --- 4. AR & CAMERA (MediaPipe) ---
+        function initCameraAndAR() {
+            const camera = new Camera(DOM.video, {
+                onFrame: async () => {
+                    if (isFaceMeshReady) {
+                        await faceMesh.send({image: DOM.video});
+                    }
+                },
+                width: 640,
+                height: 480
+            });
+            
+            camera.start().then(() => {
+                DOM.cameraLoading.classList.add('hidden');
+            }).catch(err => {
+                showError("ไม่สามารถเข้าถึงกล้องได้ กรุณาอนุญาตการใช้งานกล้อง");
+            });
+        }
+
+        const faceMesh = new FaceMesh({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+        }});
+        
+        faceMesh.setOptions({
+            maxNumFaces: 1,
+            refineLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        faceMesh.onResults((results) => {
+            isFaceMeshReady = true;
+            
+            // Adjust canvas size to match video display size
+            if(DOM.canvas.width !== DOM.video.clientWidth) {
+                DOM.canvas.width = DOM.video.clientWidth;
+                DOM.canvas.height = DOM.video.clientHeight;
+            }
+            
+            ctx.save();
+            ctx.clearRect(0, 0, DOM.canvas.width, DOM.canvas.height);
+            
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                const landmarks = results.multiFaceLandmarks[0];
+                drawAR(landmarks);
+            }
+            ctx.restore();
+        });
+
+        function drawAR(landmarks) {
+            if (!gameState.currentResult) return; // Only draw when result is active
+
+            const cw = DOM.canvas.width;
+            const ch = DOM.canvas.height;
+            
+            // Get coordinates mapped to canvas
+            const getCoord = (idx) => ({
+                x: landmarks[idx].x * cw,
+                y: landmarks[idx].y * ch
+            });
+
+            if (gameState.currentResult === 'correct') {
+                // Draw Crown
+                const topHead = getCoord(10); // Top forehead
+                const leftTemple = getCoord(234);
+                const rightTemple = getCoord(454);
+                
+                const faceWidth = Math.abs(rightTemple.x - leftTemple.x);
+                const crownWidth = faceWidth * 0.8;
+                const crownHeight = crownWidth * 0.6;
+                
+                const cx = topHead.x;
+                const cy = topHead.y - crownHeight/2;
+
+                ctx.fillStyle = '#FFD700'; // Gold
+                ctx.beginPath();
+                ctx.moveTo(cx - crownWidth/2, cy + crownHeight/2); // Bottom left
+                ctx.lineTo(cx + crownWidth/2, cy + crownHeight/2); // Bottom right
+                ctx.lineTo(cx + crownWidth/2 + crownWidth*0.1, cy - crownHeight/3); // Right edge up
+                ctx.lineTo(cx + crownWidth/4, cy); // inner dip
+                ctx.lineTo(cx, cy - crownHeight); // Top center peak
+                ctx.lineTo(cx - crownWidth/4, cy); // inner dip
+                ctx.lineTo(cx - crownWidth/2 - crownWidth*0.1, cy - crownHeight/3); // Left edge up
+                ctx.closePath();
+                ctx.fill();
+                
+                // Add some jewels
+                ctx.fillStyle = '#FF0000'; // Ruby
+                ctx.beginPath(); ctx.arc(cx, cy - crownHeight/2, crownWidth*0.08, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#0000FF'; // Sapphire
+                ctx.beginPath(); ctx.arc(cx - crownWidth*0.3, cy - crownHeight*0.1, crownWidth*0.06, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx + crownWidth*0.3, cy - crownHeight*0.1, crownWidth*0.06, 0, Math.PI*2); ctx.fill();
+
+            } else if (gameState.currentResult === 'wrong') {
+                // Draw Demon Horns
+                const leftHornBase = getCoord(54); // Forehead left
+                const rightHornBase = getCoord(284); // Forehead right
+                
+                const faceWidth = Math.abs(getCoord(454).x - getCoord(234).x);
+                const hornSize = faceWidth * 0.3;
+
+                ctx.fillStyle = '#DC2626'; // Red-600
+                
+                // Left Horn
+                ctx.beginPath();
+                ctx.moveTo(leftHornBase.x - hornSize*0.2, leftHornBase.y);
+                ctx.lineTo(leftHornBase.x + hornSize*0.2, leftHornBase.y);
+                ctx.quadraticCurveTo(leftHornBase.x - hornSize*0.1, leftHornBase.y - hornSize, leftHornBase.x - hornSize*0.5, leftHornBase.y - hornSize*1.5);
+                ctx.quadraticCurveTo(leftHornBase.x - hornSize*0.3, leftHornBase.y - hornSize*0.5, leftHornBase.x - hornSize*0.2, leftHornBase.y);
+                ctx.fill();
+
+                // Right Horn
+                ctx.beginPath();
+                ctx.moveTo(rightHornBase.x - hornSize*0.2, rightHornBase.y);
+                ctx.lineTo(rightHornBase.x + hornSize*0.2, rightHornBase.y);
+                ctx.quadraticCurveTo(rightHornBase.x + hornSize*0.1, rightHornBase.y - hornSize, rightHornBase.x + hornSize*0.5, rightHornBase.y - hornSize*1.5);
+                ctx.quadraticCurveTo(rightHornBase.x + hornSize*0.3, rightHornBase.y - hornSize*0.5, rightHornBase.x + hornSize*0.2, rightHornBase.y);
+                ctx.fill();
+            }
+        }
+
+
+        // --- 5. GAME LOGIC ---
+        
+        // Fisher-Yates Shuffle Algorithm (สำหรับสลับคำศัพท์)
+        function shuffleArray(array) {
+            let currentIndex = array.length, randomIndex;
+            while (currentIndex !== 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            return array;
+        }
+
+        function startGame() {
+            initAudio();
+            Sound.click();
+            
+            if(!initSpeechRecognition()) return;
+            
+            DOM.startBtn.innerText = "กำลังโหลด...";
+            DOM.startBtn.disabled = true;
+            DOM.setSelector.disabled = true;
+            
+            // Start Camera
+            initCameraAndAR();
+            
+            // ดึงข้อมูลชุดที่เลือกมาสลับตำแหน่งคำ
+            const selectedSetIndex = parseInt(DOM.setSelector.value);
+            currentPlaySet = [...allVocabSets[selectedSetIndex]];
+            shuffleArray(currentPlaySet);
+
+            // Initialize game state
+            gameState = {
+                currentIndex: 0,
+                score: 0,
+                isPlaying: true,
+                currentResult: null
+            };
+            
+            updateScoreUI();
+            DOM.startScreen.classList.add('hidden');
+            
+            // Give camera a moment to start before first word
+            setTimeout(showNextWord, 1000);
+        }
+
+        function showNextWord() {
+            if (gameState.currentIndex >= currentPlaySet.length) {
+                endGame();
+                return;
+            }
+
+            const currentVocab = currentPlaySet[gameState.currentIndex];
+            gameState.currentResult = null;
+            DOM.vignette.classList.remove('active');
+            
+            // Update UI
+            DOM.progressText.innerText = `ข้อ ${gameState.currentIndex + 1}/${currentPlaySet.length}`;
+            DOM.vocabChinese.innerText = currentVocab.chinese;
+            DOM.vocabPinyin.innerText = currentVocab.pinyin;
+            DOM.vocabThai.innerText = currentVocab.thai;
+            
+            resetMeter();
+            
+            // Countdown Sequence
+            let count = 3;
+            updateBadge(`เตรียมตัว... ${count}`, 'bg-gray-400');
+            
+            const countInterval = setInterval(() => {
+                Sound.tick();
+                count--;
+                if (count > 0) {
+                    updateBadge(`เตรียมตัว... ${count}`, 'bg-gray-400');
+                } else {
+                    clearInterval(countInterval);
+                    startListening();
+                }
+            }, 1000);
+        }
+
+        function startListening() {
+            Sound.go();
+            updateBadge('🎤 พูดเลย!', 'bg-blue-500', true);
+            DOM.feedbackText.innerText = "กำลังฟัง...";
+            DOM.feedbackText.className = "text-2xl font-bold mt-6 h-8 text-blue-500 animate-pulse";
+            
+            try {
+                recognition.start();
+                isListening = true;
+                
+                // 5 Seconds timeout
+                listeningTimeout = setTimeout(() => {
+                    if (isListening) {
+                        recognition.stop();
+                        handleNoSound();
+                    }
+                }, 5000);
+                
+            } catch(e) {
+                console.error("Recog Start Error", e);
+                handleNoSound();
+            }
+        }
+
+        function evaluateAnswer(transcript) {
+            isListening = false;
+            const targetWord = currentPlaySet[gameState.currentIndex].chinese;
+            
+            // Remove punctuation for comparison
+            const cleanTranscript = transcript.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()。，！？]/g,"").trim();
+            const similarity = getSimilarity(targetWord, cleanTranscript);
+            const simPercent = Math.round(similarity * 100);
+            
+            console.log(`Said: ${cleanTranscript}, Target: ${targetWord}, Sim: ${simPercent}%`);
+            
+            updateMeter(simPercent);
+
+            if (simPercent >= 80) {
+                // Correct
+                gameState.currentResult = 'correct';
+                gameState.score++;
+                updateScoreUI();
+                Sound.correct();
+                updateBadge('ยอดเยี่ยม! ถูกต้อง', 'bg-green-500');
+                DOM.feedbackText.innerText = `คุณพูดว่า: "${cleanTranscript}"`;
+                DOM.feedbackText.className = "text-2xl font-bold mt-6 h-8 text-green-600";
+                
+                // Confetti
+                confetti({
+                    particleCount: 100,
+                    spread: 70,
+                    origin: { y: 0.6 },
+                    colors: ['#FFC0CB', '#FFA07A', '#FFD700']
+                });
+
+            } else {
+                // Wrong
+                gameState.currentResult = 'wrong';
+                Sound.wrong();
+                updateBadge('พยายามอีกนิดนะ', 'bg-red-500');
+                DOM.feedbackText.innerText = `คุณพูดว่า: "${cleanTranscript}"`;
+                DOM.feedbackText.className = "text-2xl font-bold mt-6 h-8 text-red-600";
+                DOM.vignette.classList.add('active');
+            }
+
+            // Speak the correct word twice, then proceed
+            setTimeout(() => {
+                speakText(targetWord, 2, () => {
+                    gameState.currentIndex++;
+                    showNextWord();
+                });
+            }, 3000); // Show result for 3s before speaking
+        }
+
+        function handleNoSound() {
+            isListening = false;
+            Sound.warning();
+            updateBadge('ไม่ได้ยินเสียงเลย ลองใหม่นะ', 'bg-yellow-500');
+            DOM.feedbackText.innerText = "";
+            resetMeter();
+            
+            // Restart current word after 3 seconds
+            setTimeout(() => {
+                showNextWord();
+            }, 3000);
+        }
+
+
+        // --- 6. UI HELPERS ---
+        function updateBadge(text, colorClass, pulse=false) {
+            DOM.statusBadge.innerText = text;
+            DOM.statusBadge.className = `px-6 py-2 rounded-full text-white font-bold transition-colors shadow-md ${colorClass} ${pulse ? 'animate-pulse' : ''}`;
+        }
+
+        function updateMeter(percent) {
+            DOM.meterText.innerText = `${percent}%`;
+            DOM.accuracyMeter.style.width = `${percent}%`;
+            
+            if (percent >= 80) {
+                DOM.accuracyMeter.className = "h-full rounded-full meter-transition bg-green-500";
+            } else if (percent > 0) {
+                DOM.accuracyMeter.className = "h-full rounded-full meter-transition bg-red-500";
+            } else {
+                DOM.accuracyMeter.className = "h-full rounded-full meter-transition bg-gray-300";
+            }
+        }
+
+        function resetMeter() {
+            updateMeter(0);
+        }
+
+        function updateScoreUI() {
+            DOM.scoreText.innerText = gameState.score;
+        }
+
+        function endGame() {
+            gameState.isPlaying = false;
+            DOM.endScreen.classList.remove('hidden');
+            DOM.endScreen.classList.add('flex');
+            
+            DOM.finalScoreDisplay.innerText = `${gameState.score}/${currentPlaySet.length}`;
+            
+            if (gameState.score >= Math.floor(currentPlaySet.length * 0.8)) { // ผ่านเมื่อคะแนน 80% ขึ้นไป
+                DOM.endTitle.innerText = "เก่งมากๆ เลย!";
+                DOM.endTitle.className = "text-5xl font-bold text-green-400 mb-2 drop-shadow-lg";
+                Sound.fanfare();
+                confetti({ particleCount: 200, spread: 100, origin: { y: 0.5 } });
+            } else {
+                DOM.endTitle.innerText = "พยายามเข้านะ!";
+                DOM.endTitle.className = "text-5xl font-bold text-yellow-400 mb-2 drop-shadow-lg";
+                Sound.wrong(); // Can replace with specific game over sound if needed
+            }
+        }
+
+        function showError(msg) {
+            DOM.errorMsg.innerText = msg;
+            DOM.errorOverlay.classList.remove('hidden');
+            DOM.errorOverlay.classList.add('flex');
+        }
+
+        // Event Listeners
+        DOM.startBtn.addEventListener('click', startGame);
+        
+        DOM.restartBtn.addEventListener('click', () => {
+            Sound.click();
+            DOM.endScreen.classList.add('hidden');
+            DOM.endScreen.classList.remove('flex');
+            
+            // สลับคำศัพท์ในชุดเดิมใหม่
+            shuffleArray(currentPlaySet);
+            
+            gameState.currentIndex = 0;
+            gameState.score = 0;
+            updateScoreUI();
+            showNextWord();
+        });
+
+    </script>
+</body>
+</html>
