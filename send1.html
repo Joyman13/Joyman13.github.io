@@ -31,14 +31,12 @@ button,input,select,textarea{font:inherit}
 a{color:var(--primary)}
 .hidden{display:none!important}
 
-/* ---------- SweetAlert2 ธีม ---------- */
 .swal2-popup{font-family:var(--font)!important;border-radius:14px!important}
 .swal2-title{font-size:1.1rem!important}
 .swal2-html-container,.swal2-text{font-size:.95rem!important}
 .swal2-confirm,.swal2-cancel,.swal2-styled{border-radius:8px!important;font-weight:600!important}
 .swal2-toast{border-radius:10px!important;box-shadow:var(--shadow-lg)!important}
 
-/* ---------- ปุ่ม ---------- */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid transparent;border-radius:8px;padding:10px 16px;font-size:.95rem;font-weight:600;cursor:pointer;background:#fff;color:var(--text);transition:background .15s,border-color .15s;min-height:42px}
 .btn svg{width:17px;height:17px}
 .btn:disabled{opacity:.55;cursor:not-allowed}
@@ -58,7 +56,6 @@ a{color:var(--primary)}
 .icon-btn:hover{background:#eef1f6;color:var(--text)}
 .icon-btn svg{width:19px;height:19px}
 
-/* ---------- ฟอร์ม ---------- */
 .form-group{margin-bottom:14px}
 .form-group label{display:block;font-size:.88rem;font-weight:600;margin-bottom:6px}
 .form-group label em{color:var(--bad);font-style:normal}
@@ -71,7 +68,6 @@ textarea{resize:vertical;min-height:96px}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
 .form-actions{display:flex;gap:10px;flex-wrap:wrap}
 
-/* ---------- แก้ไขในตาราง (inline) ---------- */
 .inline-edit{padding:5px 8px;font-size:.85rem;border:1px dashed transparent;border-radius:6px;background:transparent;color:var(--text);min-width:0}
 .inline-edit:hover{border-color:var(--border);background:#fff}
 .inline-edit:focus{border-style:solid;border-color:var(--primary);background:#fff;box-shadow:0 0 0 2px rgba(31,95,168,.1)}
@@ -79,7 +75,6 @@ textarea{resize:vertical;min-height:96px}
 .inline-num{width:76px}
 select.inline-edit{cursor:pointer}
 
-/* ---------- ตัวเลือกนักเรียน ---------- */
 .stu-picker{border:1px solid var(--border);border-radius:10px;background:#fbfcfe;padding:10px}
 .sp-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
 .sp-tools .search-box{flex:1 1 160px;min-width:150px;max-width:100%;margin:0}
@@ -94,7 +89,6 @@ select.inline-edit{cursor:pointer}
 .sp-meta{font-size:.78rem;color:var(--text-3);flex-shrink:0}
 .sp-empty{padding:16px;text-align:center;color:var(--text-3);font-size:.85rem}
 
-/* ---------- หน้าล็อกอิน ---------- */
 .login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px;background:linear-gradient(180deg,#e7edf6 0%,#f4f6fa 45%)}
 .login-panel{width:100%;max-width:420px}
 .login-brand{text-align:center;margin-bottom:18px}
@@ -112,7 +106,6 @@ select.inline-edit{cursor:pointer}
 .notice-warn{background:var(--warn-bg);color:#7c4a00;border:1px solid #f0dcb4}
 .notice-danger{background:var(--bad-bg);color:#99202f;border:1px solid #f2c7ce}
 
-/* ---------- แผงทดลอง ---------- */
 .demo-panel{margin-top:16px;border:1px dashed #c9d4e4;border-radius:12px;padding:14px 16px;background:#fbfcfe;text-align:center}
 .demo-panel.demo-on{border-style:solid;border-color:var(--ok);background:#f3faf5}
 .demo-panel-title{font-weight:700;font-size:.95rem}
@@ -121,7 +114,6 @@ select.inline-edit{cursor:pointer}
 .demo-banner{display:none;align-items:center;gap:10px;flex-wrap:wrap;background:#fff8e8;border:1px solid #f2deb0;color:#7a4c00;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:.9rem}
 .demo-banner.show{display:flex}
 
-/* ---------- โครงหลัก ---------- */
 .topbar{position:sticky;top:0;z-index:40;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;padding:0 20px;height:60px}
 .topbar-brand{display:flex;flex-direction:column;line-height:1.2;min-width:0}
 .topbar-title{font-weight:700;font-size:1rem;white-space:nowrap}
@@ -146,7 +138,6 @@ select.inline-edit{cursor:pointer}
 .page.active{display:block}
 .app-footer{text-align:center;color:var(--text-3);font-size:.8rem;padding:18px 0 6px;max-width:1120px;margin:0 auto}
 
-/* ---------- ส่วนประกอบ ---------- */
 .page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px;flex-wrap:wrap}
 .page-head h2{margin:0;font-size:1.3rem;font-weight:700}
 .page-sub{margin:4px 0 0;color:var(--text-2);font-size:.9rem}
@@ -179,13 +170,11 @@ select.inline-edit{cursor:pointer}
 .chip:hover{border-color:#c3cfe2}
 .chip.active{background:var(--primary);border-color:var(--primary);color:#fff}
 
-/* ---------- bulk bar ---------- */
 .bulkbar{display:none;align-items:center;gap:10px;flex-wrap:wrap;background:var(--primary-bg);border:1px solid #bcd4ee;border-radius:8px;padding:8px 12px;margin-bottom:12px}
 .bulkbar.show{display:flex}
 .bulkbar .count{font-weight:700;color:var(--primary);font-size:.9rem}
 .bulkbar .spacer{flex:1}
 
-/* ---------- ตาราง ---------- */
 .card.table-card{padding:0;overflow:hidden}
 .table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:.92rem}
@@ -204,7 +193,6 @@ tbody tr:hover td{background:#fafbfd}
 .check-col{width:36px;text-align:center}
 .check-col input{width:17px;height:17px;cursor:pointer}
 
-/* ---------- การ์ดงาน ---------- */
 .stack{display:flex;flex-direction:column;gap:12px}
 .asg-card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px 18px}
 .asg-card.overdue{border-left:3px solid var(--bad)}
@@ -230,7 +218,6 @@ tbody tr:hover td{background:#fafbfd}
 .empty-hint{margin:4px 0 0;font-size:.85rem}
 .note{font-size:.82rem;color:var(--text-3);margin:10px 0 0;line-height:1.55}
 
-/* ---------- ไฟล์แนบ ---------- */
 .link-editor{display:flex;gap:8px}
 .link-editor input{flex:1;min-width:0}
 .file-list{display:flex;flex-direction:column;gap:0;margin-top:4px}
@@ -247,7 +234,6 @@ tbody tr:hover td{background:#fafbfd}
 .file-chip a{color:var(--primary);text-decoration:underline;flex-shrink:0}
 .hint{font-size:.78rem;color:var(--text-3)}
 
-/* ---------- โมดัล ---------- */
 .modal{position:fixed;inset:0;background:rgba(15,25,40,.5);display:none;align-items:flex-start;justify-content:center;padding:28px 16px;overflow-y:auto;z-index:100}
 .modal.open{display:flex}
 .modal-box{background:#fff;border-radius:12px;width:100%;max-width:560px;box-shadow:var(--shadow-lg);margin:auto}
@@ -274,7 +260,13 @@ tbody tr:hover td{background:#fafbfd}
 .sys-kv{margin:0 0 14px}
 .sys-kv>div{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed var(--border-2);font-size:.9rem}
 
-/* ---------- สวิตช์ ---------- */
+.roster-stats{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px}
+.roster-stats .rs{background:#f7f9fc;border:1px solid var(--border-2);border-radius:8px;padding:8px 10px;text-align:center}
+.roster-stats .rs .n{font-weight:700;font-size:1.1rem}
+.roster-stats .rs .l{font-size:.72rem;color:var(--text-3)}
+.roster-wrap{border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.roster-wrap .table-wrap table{border:0}
+
 .switch{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0}
 .switch input{opacity:0;width:0;height:0}
 .slider{position:absolute;inset:0;background:#c6d0dd;border-radius:99px;transition:.2s;cursor:pointer}
@@ -286,7 +278,6 @@ tbody tr:hover td{background:#fafbfd}
 .set-row b{font-size:.93rem}
 .set-sub{font-size:.78rem;color:var(--text-3);margin-top:3px;line-height:1.45}
 
-/* ---------- คู่มือ ---------- */
 .setup-tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--border-2);margin-bottom:16px;padding-bottom:12px}
 .setup-tab{border:1px solid var(--border);background:#fff;border-radius:8px;padding:7px 12px;font-size:.87rem;font-weight:600;color:var(--text-2);cursor:pointer}
 .setup-tab.active{background:var(--primary-bg);border-color:var(--primary);color:var(--primary)}
@@ -296,7 +287,6 @@ tbody tr:hover td{background:#fafbfd}
 .steps{margin:0;padding-left:22px;font-size:.92rem}
 .steps li{margin-bottom:10px;line-height:1.6}
 
-/* ---------- Toast / Loading (fallback) ---------- */
 #toastBox{position:fixed;top:70px;right:18px;z-index:200;display:flex;flex-direction:column;gap:10px;max-width:360px}
 .toast{display:flex;align-items:flex-start;gap:10px;background:#fff;border:1px solid var(--border);border-left:4px solid var(--ok);border-radius:8px;padding:11px 14px;font-size:.9rem;box-shadow:var(--shadow-lg);transform:translateX(24px);opacity:0;transition:all .3s}
 .toast.show{transform:none;opacity:1}
@@ -310,7 +300,6 @@ tbody tr:hover td{background:#fafbfd}
 #loadBar.active{opacity:1;width:70%}
 #loadBar.done{opacity:1;width:100%}
 
-/* ================= Responsive ================= */
 @media (max-width:1200px){ .page{max-width:100%} }
 @media (max-width:960px){
   .cols-4{grid-template-columns:repeat(2,1fr)}
@@ -328,6 +317,7 @@ tbody tr:hover td{background:#fafbfd}
 }
 @media (max-width:720px){
   .cols-6{grid-template-columns:repeat(2,1fr)}
+  .roster-stats{grid-template-columns:repeat(3,1fr)}
   .stat{padding:12px 14px}
   .stat-value{font-size:1.3rem}
   .page-head h2{font-size:1.15rem}
@@ -618,7 +608,7 @@ tbody tr:hover td{background:#fafbfd}
             <button type="submit" class="btn btn-primary" id="tchCreateBtn">บันทึกและมอบหมายงาน</button>
             <button type="button" class="btn btn-ghost" id="tchResetBtn">ล้างฟอร์ม</button>
           </div>
-          <p class="note">ระดับชั้นและห้องต้องตรงกับข้อมูลนักเรียนในระบบ นักเรียนจึงจะมองเห็นงาน — ช่องกรอกจะแนะนำค่าที่มีอยู่จริงให้อัตโนมัติ</p>
+          <p class="note">ระดับชั้นและห้องต้องตรงกับข้อมูลนักเรียนในระบบ นักเรียนจึงจะมองเห็นงาน — ช่องกรอกจะแนะนำค่าที่มีอยู่จริงให้อัตโนมัติ • การสร้างงานจะบันทึกในชีต Assignments (ชีต Submissions จะมีข้อมูลเมื่อนักเรียนกดส่งงาน)</p>
         </form>
       </section>
 
@@ -627,7 +617,7 @@ tbody tr:hover td{background:#fafbfd}
         <div class="page-head">
           <div>
             <h2>รายการงาน</h2>
-            <p class="page-sub">แก้ไขค่าในตารางได้เลย (กำหนดส่ง / คะแนนเต็ม / อนุญาตส่งใหม่ / เปิด-ปิดรับงาน) หรือกด "แก้ไขทั้งงาน" <span id="tchAsgUpdated"></span></p>
+            <p class="page-sub">แก้ไขค่าในตารางได้เลย • ปุ่ม "ผู้รับงาน" ดูรายชื่อ+สถานะการส่งรายคน • "แก้ไขทั้งงาน" แก้ครบทุกฟิลด์ <span id="tchAsgUpdated"></span></p>
           </div>
           <button type="button" class="btn btn-outline" id="tchAsgRefreshBtn">รีเฟรช</button>
         </div>
@@ -672,7 +662,7 @@ tbody tr:hover td{background:#fafbfd}
         <div class="page-head">
           <div>
             <h2>ตรวจงาน / ให้คะแนน</h2>
-            <p class="page-sub">รายการงานที่นักเรียนส่งเข้ามา <span id="tchSubUpdated"></span></p>
+            <p class="page-sub">รายการงานที่นักเรียนส่งเข้ามา (แถวในชีต Submissions) <span id="tchSubUpdated"></span></p>
           </div>
           <button type="button" class="btn btn-outline" id="tchSubRefreshBtn">รีเฟรช</button>
         </div>
@@ -889,7 +879,7 @@ tbody tr:hover td{background:#fafbfd}
         <div class="page-head">
           <div>
             <h2>รายการงาน</h2>
-            <p class="page-sub">แก้ไขค่าในตารางได้เลย หรือกด "แก้ไขทั้งงาน" <span id="admAsgUpdated"></span></p>
+            <p class="page-sub">แก้ไขค่าในตารางได้เลย • ปุ่ม "ผู้รับงาน" ดูรายชื่อ+สถานะการส่งรายคน <span id="admAsgUpdated"></span></p>
           </div>
           <button type="button" class="btn btn-outline" id="admAsgRefreshBtn">รีเฟรช</button>
         </div>
@@ -930,7 +920,7 @@ tbody tr:hover td{background:#fafbfd}
         <div class="page-head">
           <div>
             <h2>การส่งงานทั้งหมด</h2>
-            <p class="page-sub">ประวัติการส่งงานของนักเรียนทุกคน <span id="admSubUpdated"></span></p>
+            <p class="page-sub">ประวัติการส่งงานของนักเรียนทุกคน (ข้อมูลจากชีต Submissions) <span id="admSubUpdated"></span></p>
           </div>
           <button type="button" class="btn btn-outline" id="admSubRefreshBtn">รีเฟรช</button>
         </div>
@@ -1103,6 +1093,42 @@ tbody tr:hover td{background:#fafbfd}
   </div>
 </div>
 
+<!-- ============ โมดัล: ผู้ได้รับมอบหมาย (roster) ============ -->
+<div class="modal" id="rosterModal">
+  <div class="modal-box modal-lg">
+    <div class="modal-head"><h3 id="rosterTitle">ผู้ได้รับมอบหมาย</h3><button type="button" class="icon-btn" data-close aria-label="ปิด"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="modal-body">
+      <div id="rosterInfo" class="asg-info"></div>
+      <div class="roster-stats" id="rosterStats"></div>
+      <div class="toolbar" style="margin-bottom:12px">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+          <input id="rosterSearch" placeholder="ค้นหารหัส / ชื่อ / ชั้น">
+        </div>
+        <select id="rosterFilter">
+          <option value="">ทุกสถานะ</option>
+          <option>ยังไม่ส่ง</option>
+          <option>ส่งแล้ว</option>
+          <option>ส่งล่าช้า</option>
+          <option>กำลังตรวจ</option>
+          <option>ตรวจแล้ว</option>
+          <option>ให้แก้ไข</option>
+        </select>
+      </div>
+      <div class="roster-wrap">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>นักเรียน</th><th>สถานะ</th><th>ส่งเมื่อ</th><th>คะแนน</th><th>ส่งกี่ครั้ง</th><th>จัดการ</th></tr></thead>
+            <tbody id="rosterBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <p class="note">รายชื่อคำนวณจากข้อมูลนักเรียนในระบบ + กลุ่มที่มอบหมายของงานนี้ — "ยังไม่ส่ง" คือผู้ที่ยังไม่กดส่งงาน (จะไม่ปรากฏในชีต Submissions จนกว่าจะส่ง)</p>
+    </div>
+    <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>ปิด</button></div>
+  </div>
+</div>
+
 <!-- ============ โมดัล: แก้ไขงาน ============ -->
 <div class="modal" id="editAsgModal">
   <div class="modal-box modal-lg">
@@ -1164,7 +1190,7 @@ tbody tr:hover td{background:#fafbfd}
         </div>
       </div>
       <div class="form-group"><label for="editAsgDescription">รายละเอียด / คำชี้แจง</label><textarea id="editAsgDescription" rows="4"></textarea></div>
-      <div class="notice notice-warn">การแก้ไขชื่องาน วิชา ภาคเรียน กำหนดส่ง และคะแนนเต็ม จะถูกปรับให้ตรงกันในประวัติการส่งงานที่มีอยู่แล้วด้วย — หากเปลี่ยนกลุ่มที่มอบหมาย งานจะแสดงเฉพาะนักเรียนที่ตรงเงื่อนไขใหม่ ระบบจะไม่อนุญาตให้ลดคะแนนเต็มต่ำกว่าคะแนนที่ตรวจไปแล้ว</div>
+      <div class="notice notice-warn">การแก้ไขชื่องาน วิชา ภาคเรียน กำหนดส่ง และคะแนนเต็ม จะถูกปรับให้ตรงกันในประวัติการส่งงานที่มีอยู้แล้วด้วย — หากเปลี่ยนกลุ่มที่มอบหมาย งานจะแสดงเฉพาะนักเรียนที่ตรงเงื่อนไขใหม่ ระบบจะไม่อนุญาตให้ลดคะแนนเต็มต่ำกว่าคะแนนที่ตรวจไปแล้ว</div>
     </div>
     <div class="modal-foot">
       <button type="button" class="btn btn-ghost" data-close>ยกเลิก</button>
@@ -1236,12 +1262,13 @@ tbody tr:hover td{background:#fafbfd}
       <div class="setup-pane" id="stab-steps">
         <ol class="steps">
           <li>สร้าง Google Sheet ใหม่ แล้วสร้างแท็บชีต 5 แท็บ: <span class="mono">Students, Users, Assignments, Submissions, Settings</span></li>
-          <li>คัดลอกหัวคอลัมน์ (แถว 1) ของแต่ละชีตตามแท็บ "โครงสร้าง Google Sheet" — คอลัมน์ assignType/assignStudents ในชีต Assignments ระบบจะเพิ่มให้อัตโนมัติเมื่อสร้างงานครั้งแรก</li>
+          <li>คัดลอกหัวคอลัมน์ (แถว 1) ของแต่ละชีตตามแท็บ "โครงสร้าง Google Sheet" — คอลัมน์ assignType/assignStudents ระบบจะเพิ่มให้อัตโนมัติเมื่อสร้างงานครั้งแรก</li>
           <li>เพิ่มผู้ใช้เริ่มต้นในชีต Users (เช่น <span class="mono">admin | 1234 | admin | ผู้ดูแลระบบ | active</span>) และรายชื่อนักเรียนในชีต Students</li>
           <li>ใน Google Sheet ไปที่ <b>Extensions → Apps Script</b> ลบโค้ดเดิมออก แล้ววางโค้ดทั้งหมดจากไฟล์ <b>Code.gs</b> แล้วกดบันทึก (Ctrl+S)</li>
-          <li>กด <b>Deploy → New deployment → Web app</b> ตั้ง <span class="mono">Execute as: Me</span> และ <span class="mono">Who has access: Anyone</span> แล้วกด Deploy (ครั้งแรกจะขออนุญาตใช้สิทธิ์ Drive ให้กดอนุญาต)</li>
+          <li>กด <b>Deploy → New deployment → Web app</b> ตั้ง <span class="mono">Execute as: Me</span> และ <span class="mono">Who has access: Anyone</span> แล้วกด Deploy</li>
           <li>คัดลอก URL ของ Web App (ลงท้ายด้วย <span class="mono">/exec</span>) มาใส่ใน DEFAULTS.apiUrl ของไฟล์ index.html</li>
-          <li><b>อัปเดต Code.gs ภายหลัง:</b> Deploy → Manage deployments → ปุ่มดินสอ (Edit) → Version: <span class="mono">New version</span> → Deploy (URL เดิม ไม่ต้องตั้งค่าใหม่)</li>
+          <li><b>อัปเดต Code.gs ภายหลัง:</b> Deploy → Manage deployments → ปุ่มดินสอ (Edit) → Version: <span class="mono">New version</span> → Deploy (URL เดิม)</li>
+          <li><b>สำคัญ:</b> ชีต Assignments เก็บงานที่มอบหมาย • ชีต Submissions จะมีข้อมูลก็ต่อเมื่อนักเรียนกดส่งงาน (1 แถว = 1 การส่ง) — อย่าเติมแถว "ยังไม่ส่ง" เอง เพราะระบบจะถือว่านักเรียนส่งแล้วและบล็อกการส่ง</li>
         </ol>
       </div>
       <div class="setup-pane" id="stab-schema">
@@ -1257,8 +1284,8 @@ tbody tr:hover td{background:#fafbfd}
 (function () {
 'use strict';
 
-const FRONT_VERSION = '2.4';
-const NEED_API_VERSION = '2.3';
+const FRONT_VERSION = '2.5';
+const NEED_API_VERSION = '2.4';
 
 /* ================= ค่าเริ่มต้นของระบบ ================= */
 const DEFAULTS = {
@@ -1286,6 +1313,7 @@ const state = {
   studentItems: [], tchAsg: [], tchSub: [], admStu: [], admUsers: [], admAsg: [], admSub: [],
   allStudents: null, pickCreate: {}, pickEdit: {},
   studentFilter: 'all', currentPage: '', currentSubmit: null, currentGrade: null, currentEditAsg: null, currentEditUser: null,
+  currentRosterAsg: null, rosterData: null, rosterSubs: {},
   bulkGradeIds: [],
   pgTchAsg: 1, pgTchSub: 1, pgAdmStu: 1, pgAdmUsr: 1, pgAdmAsg: 1, pgAdmSub: 1,
   lastLoad: {}, filtered: {}, stuTermDefaulted: false, warnedApiVer: false,
@@ -1337,7 +1365,7 @@ function dtToLocalInput(v) {
   return '';
 }
 
-/* ---------- มอบหมายงาน 4 ระดับ (ฝั่งหน้าเว็บ) ---------- */
+/* ---------- มอบหมายงาน 4 ระดับ ---------- */
 function parseIds(v) {
   return String(v || '').split(/[\s,;]+/).map(function (x) { return x.trim(); }).filter(Boolean);
 }
@@ -1613,6 +1641,7 @@ function resetAllData() {
   state.studentItems = []; state.tchAsg = []; state.tchSub = [];
   state.admStu = []; state.admUsers = []; state.admAsg = []; state.admSub = [];
   state.allStudents = null; state.pickCreate = {}; state.pickEdit = {};
+  state.rosterData = null; state.currentRosterAsg = null; state.rosterSubs = {};
   state.lastLoad = {}; state.filtered = {}; state.stuTermDefaulted = false;
   Object.keys(SELECTIONS).forEach(function (k) { SELECTIONS[k].clear(); updateBulkBar(k); });
 }
@@ -1719,6 +1748,60 @@ function runDemo(action, p) {
       });
       return { success:true, student:stu2, data:data };
     }
+    case 'getAssignmentRoster': {
+      var rid = normTxt(p.assignmentId);
+      var ra = db.assignments.filter(function (x) { return String(x.assignmentId) === rid; })[0];
+      if (!ra) return { success:false, message:'ไม่พบข้อมูลงาน' };
+      var active = db.students.filter(function (s) { return String(s.status || 'active') === 'active'; });
+      var rt = assignTypeOf(ra);
+      var assigned;
+      if (rt === 'all') assigned = active.slice();
+      else if (rt === 'grade') assigned = active.filter(function (s) { return normTxt(s.gradeLevel) === normTxt(ra.gradeLevel); });
+      else if (rt === 'room') {
+        var rroom = normTxt(ra.classRoom);
+        assigned = active.filter(function (s) {
+          if (normTxt(s.gradeLevel) !== normTxt(ra.gradeLevel)) return false;
+          if (!rroom) return true;
+          return normTxt(s.classRoom) === rroom;
+        });
+      } else {
+        var rids = parseIds(ra.assignStudents);
+        var rset = {};
+        rids.forEach(function (x) { rset[x] = true; });
+        assigned = active.filter(function (s) { return rset[normTxt(s.studentId)]; });
+        var rfound = {};
+        assigned.forEach(function (s) { rfound[normTxt(s.studentId)] = true; });
+        rids.forEach(function (x) {
+          if (!rfound[x]) assigned.push({ studentId:x, studentName:'(ไม่พบข้อมูลนักเรียน)', gradeLevel:'', classRoom:'', status:'missing' });
+        });
+      }
+      assigned.sort(function (a, b) { return String(a.studentId).localeCompare(String(b.studentId), 'th'); });
+      var rsubs = db.submissions.filter(function (s) { return String(s.assignmentId) === rid; });
+      var rows = assigned.map(function (stu) {
+        var m = rsubs.filter(function (s) { return String(s.studentId) === String(stu.studentId); });
+        var latest = m.length ? m[m.length - 1] : null;
+        return { student:stu, latestSubmission:latest, submissionCount:m.length, status:latest ? latest.status : 'ยังไม่ส่ง' };
+      });
+      var sum = { assigned:rows.length, submitted:0, pending:0, late:0, checked:0, revise:0, checking:0, totalScore:0, scored:0 };
+      rows.forEach(function (r) {
+        var stx = String(r.status);
+        if (stx === 'ยังไม่ส่ง') { sum.pending++; return; }
+        sum.submitted++;
+        if (stx === 'ส่งล่าช้า') sum.late++;
+        if (stx === 'ตรวจแล้ว') sum.checked++;
+        if (stx === 'ให้แก้ไข') sum.revise++;
+        if (stx === 'กำลังตรวจ') sum.checking++;
+        if (r.latestSubmission && r.latestSubmission.score !== '' && r.latestSubmission.score != null) {
+          var sc = Number(r.latestSubmission.score);
+          if (!isNaN(sc)) { sum.totalScore += sc; sum.scored++; }
+        }
+      });
+      return { success:true, data:{
+        assignment:ra, rows:rows,
+        summary:{ assigned:sum.assigned, submitted:sum.submitted, pending:sum.pending, late:sum.late, checked:sum.checked, revise:sum.revise, checking:sum.checking,
+          avgScore: sum.scored ? Math.round((sum.totalScore / sum.scored) * 100) / 100 : null }
+      } };
+    }
     case 'createAssignment': {
       var need = { subject:p.subject, title:p.title, dueDateTime:p.dueDateTime, createdBy:p.createdBy };
       for (var k in need) { if (!normTxt(need[k])) return { success:false, message:'กรุณากรอกข้อมูลสร้างงานให้ครบ' }; }
@@ -1808,7 +1891,7 @@ function runDemo(action, p) {
       var ids4 = p.ids || [];
       if (!ids4.length) return { success:false, message:'กรุณาเลือกงานอย่างน้อย 1 รายการ' };
       var b2 = db.assignments.length;
-      db.assignments = db.assignments.filter(function (a) { return ids4.indexOf(String(a.assignmentId)) === -1; });
+      db.assignments = db.assignments.filter(function (a) { return ids4.indexOf(String(a.assignmentId) === -1); });
       saveDemoDb();
       return { success:true, message:'ลบ ' + (b2 - db.assignments.length) + ' งานแล้ว (ประวัติการส่งงานยังคงอยู่)' };
     }
@@ -2692,7 +2775,7 @@ function renderTeacherHome() {
   }
 }
 
-/* ---------- ตารางงาน: แก้ไข inline ได้ ---------- */
+/* ---------- ตารางงาน: inline + ปุ่มผู้รับงาน ---------- */
 function asgRow(a, key) {
   var di = dueInfo(a.dueDateTime);
   var active = String(a.activeStatus || 'active') === 'active';
@@ -2711,7 +2794,10 @@ function asgRow(a, key) {
       '<option value="active"' + (active ? ' selected' : '') + '>เปิดรับงาน</option>' +
       '<option value="inactive"' + (!active ? ' selected' : '') + '>ปิดอยู่</option></select></td>' +
     '<td data-label="ผู้สร้าง">' + esc(a.createdBy) + '</td>' +
-    '<td data-label="จัดการ"><button type="button" class="btn btn-ghost btn-sm" data-editasg="' + esc(a.assignmentId) + '">แก้ไขทั้งงาน</button></td></tr>';
+    '<td data-label="จัดการ"><div class="btn-row">' +
+      '<button type="button" class="btn btn-outline btn-sm" data-roster="' + esc(a.assignmentId) + '">ผู้รับงาน</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-editasg="' + esc(a.assignmentId) + '">แก้ไขทั้งงาน</button>' +
+    '</div></td></tr>';
 }
 function renderTchAsgTable() {
   refreshTermFilters('tchAsgYear', 'tchAsgTerm', state.tchAsg, 'acadYear', 'term');
@@ -2803,13 +2889,18 @@ async function onSaveGrade() {
       });
       closeModal('gradeModal');
       toast('บันทึกผลการตรวจแล้ว');
-      await loadTeacherSubmissions(true);
-      renderTeacherHome();
+      if (session.role === 'admin') {
+        await loadAdminSubmissions(true);
+      } else {
+        await loadTeacherSubmissions(true);
+        renderTeacherHome();
+      }
+      if ($('rosterModal').classList.contains('open')) await loadRoster(true);
     } catch (err) { toast(err.message, 'error'); }
   });
 }
 
-/* ---------- สร้างงาน + datalist แนะนำชั้น/ห้อง ---------- */
+/* ---------- สร้างงาน + datalist ---------- */
 async function fillGradeRoomSuggestions() {
   try {
     var students = await ensureAllStudents();
@@ -2925,7 +3016,7 @@ async function onCreateAssignment(ev) {
                 at === 'grade' ? 'ทุกห้องในชั้น ' + v.grade :
                 at === 'room' ? v.grade + '/' + v.room :
                 pickIds.length + ' รายการ';
-      toast('สร้างงานปีการศึกษา ' + v.year + ' ' + termLabel(v.term) + ' มอบหมายให้ ' + tgt + ' เรียบร้อยแล้ว');
+      toast('สร้างงานปีการศึกษา ' + v.year + ' ' + termLabel(v.term) + ' มอบหมายให้ ' + tgt + ' เรียบร้อยแล้ว (บันทึกในชีต Assignments — ดูรายชื่อผู้รับงานได้ที่ปุ่ม "ผู้รับงาน")');
       resetTchForm();
       state.lastLoad = {};
       navigate('tch-assignments');
@@ -3047,7 +3138,7 @@ function findAssignmentAnywhere(id) {
          state.admAsg.filter(function (x) { return String(x.assignmentId) === ida; })[0] || null;
 }
 
-/* ---------- บันทึกการแก้ไข inline ในตารางงาน ---------- */
+/* ---------- บันทึกการแก้ไข inline ---------- */
 async function saveInlineAsg(el) {
   var parts = el.dataset.inlineasg.split(':');
   var field = parts[0], id = parts.slice(1).join(':');
@@ -3080,6 +3171,94 @@ async function reloadAsgTables() {
   else if (state.currentPage === 'tch-assignments') await loadTeacherAssignments(true);
 }
 
+/* ---------- ผู้ได้รับมอบหมาย (roster) ---------- */
+async function openRosterModal(a) {
+  state.currentRosterAsg = a;
+  state.rosterData = null;
+  $('rosterTitle').textContent = 'ผู้ได้รับมอบหมาย: ' + (a.title || '');
+  $('rosterInfo').innerHTML = '<div class="asg-info-row">' + esc(a.subject || '') + '</div><div class="asg-info-sub">กำลังโหลดรายชื่อ...</div>';
+  $('rosterStats').innerHTML = '';
+  $('rosterBody').innerHTML = '<tr><td colspan="6" data-label="" class="table-empty">กำลังโหลด...</td></tr>';
+  $('rosterSearch').value = '';
+  $('rosterFilter').value = '';
+  openModal('rosterModal');
+  await loadRoster(true);
+}
+async function loadRoster(force) {
+  var a = state.currentRosterAsg; if (!a) return;
+  if (!force && state.rosterData && state.rosterData.assignment &&
+      String(state.rosterData.assignment.assignmentId) === String(a.assignmentId)) {
+    renderRoster();
+    return;
+  }
+  try {
+    var res = await api('getAssignmentRoster', { assignmentId: a.assignmentId });
+    state.rosterData = res.data;
+    renderRoster();
+  } catch (err) {
+    $('rosterInfo').innerHTML = '<div class="asg-info-row" style="color:var(--bad)">โหลดรายชื่อไม่สำเร็จ</div><div class="asg-info-sub">' + esc(err.message) + '</div>';
+    $('rosterBody').innerHTML = '';
+    $('rosterStats').innerHTML = '';
+    toast(err.message, 'error');
+  }
+}
+function rsCell(label, val) {
+  return '<div class="rs"><div class="n">' + esc(val) + '</div><div class="l">' + esc(label) + '</div></div>';
+}
+function renderRoster() {
+  var d = state.rosterData; if (!d) return;
+  var a = d.assignment || {};
+  var s = d.summary || {};
+  var di = dueInfo(a.dueDateTime);
+  $('rosterInfo').innerHTML =
+    '<div class="asg-info-row">' + esc(a.subject || '') + ' • ' + esc(a.title || '') + '</div>' +
+    '<div class="asg-info-sub">มอบหมายให้: ' + esc(targetPlain(a)) + ' • ปี ' + esc(a.acadYear || '-') + ' ' + termLabel(a.term || '') +
+    ' • กำหนดส่ง ' + fmtDT(a.dueDateTime) + (di ? ' (<span class="' + dueTextCls(di) + '">' + di.label + '</span>)' : '') +
+    ' • คะแนนเต็ม ' + fmtScore(a.maxScore) + ' • สถานะ: ' + (String(a.activeStatus || 'active') === 'active' ? 'เปิดรับงาน' : 'ปิดรับงาน') + '</div>';
+  $('rosterStats').innerHTML =
+    rsCell('มอบหมาย', s.assigned) + rsCell('ส่งแล้ว', s.submitted) + rsCell('ยังไม่ส่ง', s.pending) +
+    rsCell('ตรวจแล้ว', s.checked) + rsCell('ส่งล่าช้า', s.late) + rsCell('เฉลี่ยคะแนน', s.avgScore == null ? '–' : fmtScore(s.avgScore));
+
+  state.rosterSubs = {};
+  (d.rows || []).forEach(function (r) {
+    if (r.latestSubmission) state.rosterSubs[String(r.latestSubmission.submissionId)] = r.latestSubmission;
+  });
+
+  var q = $('rosterSearch').value.trim().toLowerCase();
+  var f = $('rosterFilter').value;
+  var rows = (d.rows || []).filter(function (r) {
+    var okF = !f || String(r.status) === f;
+    var stu = r.student || {};
+    var okQ = !q || (String(stu.studentId) + ' ' + String(stu.studentName) + ' ' + String(stu.gradeLevel) + '/' + String(stu.classRoom)).toLowerCase().indexOf(q) > -1;
+    return okF && okQ;
+  });
+  $('rosterBody').innerHTML = rows.length
+    ? rows.map(function (r) { return rosterRow(r, a); }).join('')
+    : '<tr><td colspan="6" data-label="" class="table-empty">ไม่พบรายชื่อตามเงื่อนไข</td></tr>';
+}
+function rosterRow(r, a) {
+  var stu = r.student || {};
+  var ls = r.latestSubmission;
+  var graded = ls && String(ls.status) === 'ตรวจแล้ว';
+  var missing = String(stu.status) === 'missing';
+  var acts;
+  if (ls) {
+    acts = '<div class="btn-row">' +
+      '<button type="button" class="btn ' + (graded ? 'btn-outline' : 'btn-primary') + ' btn-sm" data-rostgrade="' + esc(ls.submissionId) + '">' + (graded ? 'ดู / แก้ไขคะแนน' : 'ตรวจ / ให้คะแนน') + '</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-rostview="' + esc(ls.submissionId) + '">ดูงาน</button>' +
+    '</div>';
+  } else {
+    acts = '<span class="pill pill-gray">ยังไม่มีงานส่ง</span>';
+  }
+  return '<tr' + (missing ? ' class="row-muted"' : '') + '>' +
+    '<td data-label="นักเรียน"><div class="cell-strong">' + esc(stu.studentName) + '</div><div class="cell-sub">' + esc(stu.studentId) + (missing ? '' : ' • ' + esc(stu.gradeLevel) + '/' + esc(stu.classRoom)) + '</div></td>' +
+    '<td data-label="สถานะ">' + statusPill(r.status) + '</td>' +
+    '<td data-label="ส่งเมื่อ">' + (ls ? fmtDT(ls.submittedAt) : '–') + '</td>' +
+    '<td data-label="คะแนน" class="cell-num">' + (ls && ls.score !== '' && ls.score != null ? fmtScore(ls.score) + ' / ' + fmtScore(a.maxScore) : '–') + '</td>' +
+    '<td data-label="ส่งกี่ครั้ง" class="cell-num">' + (r.submissionCount || 0) + '</td>' +
+    '<td data-label="จัดการ">' + acts + '</td></tr>';
+}
+
 /* ================= แอดมิน ================= */
 async function loadAdminSummary(force) {
   if (!shouldLoad('admSum', force)) return;
@@ -3101,7 +3280,7 @@ async function loadAdminStudents(force) {
   try {
     var res = await api('getAllStudents');
     state.admStu = res.data;
-    state.allStudents = null; /* ล้าง cache เพื่อ datalist / picker ใช้ข้อมูลใหม่ */
+    state.allStudents = null;
     SELECTIONS.stu.clear(); updateBulkBar('stu');
     markLoaded('admStu');
     $('admStuUpdated').textContent = '• อัปเดตล่าสุด ' + timeNow();
@@ -3467,6 +3646,7 @@ async function onBulkGradeSave() {
       SELECTIONS.tsub.clear(); updateBulkBar('tsub');
       await loadTeacherSubmissions(true);
       renderTeacherHome();
+      if ($('rosterModal').classList.contains('open')) await loadRoster(true);
     } catch (err) { toast(err.message, 'error'); }
   });
 }
@@ -3752,6 +3932,24 @@ function bindEvents() {
     if (e.target.closest('[data-bulk]')) { onBulkAction(e); return; }
     if (e.target.closest('[data-stuact]')) { onStuAct(e); return; }
     if (e.target.closest('[data-usract]')) { onUsrAct(e); return; }
+    var ros = e.target.closest('[data-roster]');
+    if (ros && !ros.disabled) {
+      var fa = findAssignmentAnywhere(ros.dataset.roster);
+      if (fa) openRosterModal(fa);
+      return;
+    }
+    var rg = e.target.closest('[data-rostgrade]');
+    if (rg) {
+      var sub2 = state.rosterSubs && state.rosterSubs[String(rg.dataset.rostgrade)];
+      if (sub2) openGradeModal(sub2);
+      return;
+    }
+    var rv = e.target.closest('[data-rostview]');
+    if (rv) {
+      var sub3 = state.rosterSubs && state.rosterSubs[String(rv.dataset.rostview)];
+      if (sub3) openSubmissionDetail(sub3);
+      return;
+    }
     var ea = e.target.closest('[data-editasg]');
     if (ea && !ea.disabled) {
       var found = findAssignmentAnywhere(ea.dataset.editasg);
@@ -3771,7 +3969,7 @@ function bindEvents() {
     }
   });
 
-  /* บันทึกการแก้ไข inline ในตารางงาน */
+  /* บันทึกการแก้ไข inline */
   document.addEventListener('change', function (e) {
     var el = e.target.closest('[data-inlineasg]');
     if (el) saveInlineAsg(el);
@@ -3786,6 +3984,10 @@ function bindEvents() {
   document.querySelectorAll('[data-close]').forEach(function (b) {
     b.addEventListener('click', function () { closeModal(b.closest('.modal').id); });
   });
+
+  /* roster: ค้นหา/กรอง */
+  $('rosterSearch').addEventListener('input', renderRoster);
+  $('rosterFilter').addEventListener('change', renderRoster);
 
   /* นักเรียน */
   $('stuRefreshBtn').addEventListener('click', function () { loadStudentData(true); });
@@ -3907,15 +4109,16 @@ const SCHEMA = [
 'ตัวอย่าง:  admin    | 1234 | admin   | ผู้ดูแลระบบ | active',
 '          teacher01 | 1234 | teacher | ครูสมชาย   | active',
 '',
-'ชีต Assignments (assignType/assignStudents เพิ่มให้อัตโนมัติเมื่อสร้างงานครั้งแรก):',
+'ชีต Assignments (เก็บงานที่มอบหมาย — assignType/assignStudents เพิ่มให้อัตโนมัติ):',
 'assignmentId | subject | title | description | gradeLevel | classRoom | assignType | assignStudents | term | acadYear | dueDateTime | maxScore | allowResubmit | activeStatus | createdBy | createdAt',
 'assignType    = room (ห้อง) / grade (ทั้งระดับชั้น) / all (ทั้งโรงเรียน) / students (รายบุคคล)',
 'assignStudents = รหัสนักเรียนคั่นด้วย , (ใช้เมื่อ assignType = students เท่านั้น)',
 '',
-'ชีต Submissions:',
+'ชีต Submissions (มีข้อมูลเมื่อนักเรียนกดส่งงานเท่านั้น — 1 แถว = 1 การส่ง):',
 'submissionId | assignmentId | studentId | studentName | gradeLevel | classRoom | subject | assignmentTitle | term | acadYear | dueDateTime | maxScore | submittedAt | submissionText | submissionLink | submissionFiles | status | isLate | score | feedback | checkedBy | checkedAt',
 'submissionLink เก็บหลายลิงก์ได้ (1 บรรทัด 1 ลิงก์)',
 'submissionFiles เก็บ JSON เช่น [{"name":"รายงาน.pdf","url":"https://...","size":123456}]',
+'*** ห้ามเติมแถว "ยังไม่ส่ง" เอง — ระบบถือว่าแถวใดมีในชีต = ส่งแล้ว และจะบล็อกการส่งงาน (ถ้า allowResubmit=false) ***',
 '',
 'ชีต Settings (key | value):',
 'systemOn | true        ← เปิด/ปิดระบบ (false = นักเรียน/ครูเข้าไม่ได้)',
