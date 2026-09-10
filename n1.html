@@ -1,0 +1,2116 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบเช็คชื่อ (Multi-User Realtime)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f3f4f6;
+            --card: #ffffff;
+            --border: #e5e7eb;
+            --text: #1f2937;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+        body { font-family: 'Sarabun', 'TH Sarabun New', 'TH Sarabun PSK', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; background: var(--card); padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+
+        /* ===== Login Overlay ===== */
+        #loginOverlay { position:fixed; inset:0; background:linear-gradient(135deg,#1e3a8a,#2563eb); display:flex; align-items:center; justify-content:center; z-index:1000; }
+        #loginOverlay.hidden { display:none; }
+        .login-card { background:#fff; padding:35px 30px; border-radius:14px; width:340px; box-shadow:0 20px 50px rgba(0,0,0,.3); }
+        .login-card h2 { margin:0 0 4px; text-align:center; }
+        .login-card .sub { text-align:center; color:#6b7280; font-size:14px; margin:0 0 20px; }
+        .login-card label { font-size:13px; font-weight:600; color:#374151; display:block; margin-bottom:4px; }
+        .login-card input { width:100%; padding:10px; margin-bottom:14px; border:1px solid var(--border); border-radius:6px; font-size:16px; box-sizing:border-box; font-family:inherit; }
+        #loginError { color:var(--danger); font-size:13px; min-height:18px; margin-bottom:6px; text-align:center; }
+        .login-hint { font-size:12px; color:#9ca3af; text-align:center; margin-top:14px; }
+
+        /* ===== User bar & Realtime badge ===== */
+        .user-bar { display:flex; justify-content:space-between; align-items:center; gap:10px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 14px; margin-bottom:12px; flex-wrap:wrap; }
+        .user-bar .who { font-weight:700; }
+        .role-badge { display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:700; margin-left:8px; }
+        .role-admin { background:#fee2e2; color:#991b1b; }
+        .role-teacher { background:#dbeafe; color:#1e40af; }
+        .rt-badge { font-size:13px; font-weight:600; color:#166534; background:#dcfce7; border:1px solid #86efac; border-radius:999px; padding:4px 12px; }
+        .rt-badge.off { color:#6b7280; background:#f3f4f6; border-color:var(--border); }
+        #toast { position:fixed; bottom:25px; left:50%; transform:translateX(-50%); background:#1f2937; color:#fff; padding:10px 22px; border-radius:999px; font-size:14px; opacity:0; pointer-events:none; transition:opacity .3s; z-index:1100; box-shadow:0 6px 20px rgba(0,0,0,.25); }
+        #toast.show { opacity:1; }
+
+        .semester-bar { display:flex; align-items:center; gap:10px; background:#eef2ff; border:1px solid #c7d2fe; border-radius:8px; padding:10px 14px; margin-bottom:12px; flex-wrap:wrap; }
+        .semester-bar select { width:auto; min-width:220px; flex:1; margin-bottom:0; }
+
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--border); padding-bottom: 10px; flex-wrap: wrap; }
+        .tab-btn { padding: 10px 20px; border: none; background: #e5e7eb; cursor: pointer; border-radius: 5px; font-size: 16px; font-weight: bold; font-family: inherit; }
+        .tab-btn.active { background: var(--primary); color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .sub-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; border-bottom: 2px solid var(--border); padding-bottom: 10px; }
+        .sub-tab-btn { padding: 8px 14px; border: 1px solid var(--border); background: #f3f4f6; color: var(--text); border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600; font-family: inherit; }
+        .sub-tab-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .sub-tab-content { display: none; }
+        .sub-tab-content.active { display: block; }
+        .settings-form-box { background: #f9fafb; padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 15px; }
+        .settings-form-box h4 { margin: 0 0 12px 0; }
+        .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+        .form-row label { font-size: 13px; font-weight: 600; color: #6b7280; display: block; margin-bottom: 4px; }
+        .form-row input, .form-row select { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 5px; font-size: 15px; box-sizing: border-box; font-family: inherit; }
+        .form-hint { font-size: 13px; color: #6b7280; margin: 8px 0 0; }
+        .checkbox-list { display:flex; flex-direction:column; gap:6px; max-height:240px; overflow:auto; background:#fff; border:1px solid var(--border); border-radius:5px; padding:10px; }
+        .check-item { font-size:14px; cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:400; }
+        .check-item small { color:#6b7280; }
+
+        /* ===== ตารางเรียนแบบ Visual ===== */
+        .visual-schedule { width:100%; border-collapse:collapse; margin-top:5px; table-layout:fixed; }
+        .visual-schedule th, .visual-schedule td { border:1px solid var(--border); padding:6px 4px; text-align:center; vertical-align:middle; }
+        .visual-schedule th { background:#f9fafb; font-size:14px; }
+        .visual-schedule .vs-corner { width:55px; font-size:12px; }
+        .visual-schedule .period-cell { background:#f9fafb; font-weight:bold; width:55px; }
+        .visual-schedule .empty-cell { color:#cbd5e1; cursor:pointer; height:46px; font-size:18px; }
+        .visual-schedule .empty-cell.readonly { cursor:default; font-size:12px; }
+        .visual-schedule .empty-cell:hover { background:#eff6ff; color:var(--primary); }
+        .visual-schedule .empty-cell.readonly:hover { background:transparent; color:#cbd5e1; }
+        .visual-schedule .class-cell { cursor:pointer; }
+        .visual-schedule .class-cell:hover { outline:2px solid var(--primary); outline-offset:-2px; }
+        .vs-class { font-weight:bold; font-size:14px; }
+        .vs-subject { font-size:12px; color:#475569; }
+        .vs-teacher { font-size:11px; color:#64748b; }
+        .vs-period { font-size:11px; color:#64748b; }
+        .vs-actions { margin-top:4px; display:none; }
+        .visual-schedule .class-cell:hover .vs-actions { display:block; }
+        .vs-actions button { padding:2px 8px; font-size:11px; }
+
+        select, input[type="date"], textarea { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid var(--border); border-radius: 5px; font-size: 16px; box-sizing: border-box; font-family: inherit; }
+        input[type="date"] { max-width: 250px; margin-bottom: 0; }
+        button { padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; transition: 0.2s; font-family: inherit; }
+        .btn-primary { background: var(--primary); }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-danger { background: var(--danger); }
+        .btn-success { background: var(--success); }
+        .btn-warning { background: var(--warning); color: black;}
+
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid var(--border); padding: 10px; text-align: left; }
+        th { background: #f9fafb; }
+
+        .radio-group { display: flex; gap: 10px; }
+        .radio-group label { cursor: pointer; font-size: 14px; }
+
+        .flex-between { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px; flex-wrap: wrap; }
+        .day-badge { display: inline-block; padding: 8px 15px; background: #e0e7ff; color: var(--primary); font-weight: bold; border-radius: 5px; margin-left: 10px; }
+
+        .report-toolbar { background:#f9fafb; border:1px solid var(--border); border-radius:8px; padding:15px; margin-bottom:15px; }
+        .report-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:15px; }
+        .toolbar-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:12px; }
+        .report-card { border:1px solid var(--border); border-radius:8px; padding:14px; background:#fff; }
+        .report-card .label { color:#6b7280; font-size:13px; }
+        .report-card .value { font-size:25px; font-weight:700; margin-top:4px; }
+        .report-card small { color:#6b7280; }
+        .report-table-wrap { overflow:auto; max-width:100%; border:1px solid var(--border); border-radius:8px; }
+        .report-table { min-width:900px; margin-top:0; }
+        .report-table th { position:sticky; top:0; z-index:2; white-space:nowrap; }
+        .badge-ms { display:inline-block; padding:3px 8px; border-radius:999px; background:#fee2e2; color:#991b1b; font-weight:700; font-size:12px; }
+        .badge-repeat { display:inline-block; padding:3px 8px; border-radius:999px; background:#ede9fe; color:#6b21a8; font-weight:700; font-size:12px; }
+        .badge-ok { display:inline-block; padding:3px 8px; border-radius:999px; background:#dcfce7; color:#166534; font-weight:700; font-size:12px; }
+        .badge-wait { display:inline-block; padding:3px 8px; border-radius:999px; background:#e5e7eb; color:#374151; font-weight:700; font-size:12px; }
+        .report-note { font-size:13px; color:#6b7280; margin:8px 0 0; }
+        .report-section { margin-top:18px; }
+        .report-section h3 { margin-bottom:10px; }
+
+        #print-formal { display: none; }
+
+        @media print {
+            @page { size: A4 portrait; margin: 8mm 10mm 8mm 10mm; }
+            body { font-family: 'Sarabun', 'TH Sarabun New', 'TH Sarabun PSK', sans-serif; background: #fff; padding: 0; color: #000; font-size: 16pt; line-height: 1.25; }
+            .container { max-width: none; box-shadow: none; padding: 0; border: none; }
+            h1, .tabs, .sub-tabs, .semester-bar, .user-bar, .rt-badge, #toast, .report-toolbar, .report-note, .report-grid, .report-section, .print-only-title { display: none !important; }
+            #attendance, #settings, #backup, #myschedule { display: none !important; }
+            #reports { display: block !important; }
+            #print-formal { display: block !important; }
+            .print-page { page-break-after: always; break-after: page; box-sizing: border-box; padding-top: 5mm; }
+            .print-page:last-child { page-break-after: auto; break-after: auto; }
+            .formal-header { text-align: center; margin-bottom: 2px; line-height: 1.2; font-size: 18pt; font-weight: bold; }
+            .formal-school { text-align: right; margin-right: 15px; margin-bottom: 4px; font-size: 16pt; font-weight: normal; }
+            .formal-date { text-align: right; margin-right: 15px; margin-bottom: 8px; font-size: 16pt; }
+            .formal-body p { margin: 2px 0; font-size: 16pt; }
+            .indent { text-indent: 40px; }
+            table.formal-table { width: 100%; border-collapse: collapse; margin: 8px 0; page-break-inside: auto; }
+            table.formal-table tr { page-break-inside: avoid; page-break-after: auto; }
+            table.formal-table th, table.formal-table td { border: 1px solid #000; padding: 2px 4px; text-align: center; font-size: 15pt; }
+            table.formal-table th { background: #fff; font-weight: bold; }
+            table.formal-table td.left { text-align: left; padding-left: 6px; }
+            .signatures { display: flex; justify-content: space-around; margin-top: 15px; page-break-inside: avoid; font-size: 15pt; }
+            .signatures div { text-align: center; }
+            .formal-remark { margin-top: 10px; font-size: 13pt; page-break-inside: avoid; }
+            .formal-remark p { margin: 1px 0; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ============ หน้าเข้าสู่ระบบ ============ -->
+<div id="loginOverlay">
+    <div class="login-card">
+        <h2>🔐 เข้าสู่ระบบ</h2>
+        <p class="sub">ระบบเช็คชื่อการมาเรียน</p>
+        <label>ชื่อผู้ใช้ (Username)</label>
+        <input type="text" id="loginUsername" autocomplete="username">
+        <label>รหัสผ่าน (Password)</label>
+        <input type="password" id="loginPassword" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+        <div id="loginError"></div>
+        <button class="btn-primary" style="width:100%; padding:12px; font-size:16px;" onclick="doLogin()">เข้าสู่ระบบ</button>
+        <p class="login-hint">ครั้งแรกใช้ได้ทันที: <b>admin / admin1234</b> (ควรเปลี่ยนรหัสผ่าน)</p>
+    </div>
+</div>
+
+<div id="toast"></div>
+
+<div class="container">
+
+    <div class="flex-between">
+        <h2 style="margin:0;">📋 ระบบเช็คชื่อการมาเรียน</h2>
+        <div id="rtBadge" class="rt-badge">🟢 Realtime</div>
+    </div>
+
+    <div class="user-bar">
+        <div id="userBarInfo"></div>
+        <div>
+            <button class="btn-warning" onclick="changeMyPassword()">🔑 เปลี่ยนรหัสผ่าน</button>
+            <button class="btn-danger" onclick="doLogout()">ออกจากระบบ</button>
+        </div>
+    </div>
+
+    <div class="semester-bar">
+        <span style="font-weight:bold;">📅 ภาคเรียน:</span>
+        <select id="semesterSelect" onchange="switchSemester(this.value)"></select>
+        <button class="btn-warning" id="btnManageSemester" onclick="goToSemesterSettings()">⚙️ จัดการภาคเรียน</button>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn" id="tabAttendance" onclick="switchTab('attendance', this)">📋 หน้าเช็คชื่อ</button>
+        <button class="tab-btn" id="tabMySchedule" onclick="switchTab('myschedule', this)">🗓️ ตารางสอนของฉัน</button>
+        <button class="tab-btn" id="tabReports" onclick="switchTab('reports', this)">📊 รายงานการมาเรียน</button>
+        <button class="tab-btn" id="tabSettings" onclick="switchTab('settings', this)">⚙️ ตั้งค่า</button>
+        <button class="tab-btn" id="tabBackup" onclick="switchTab('backup', this)">🔐 สำรอง/กู้คืนข้อมูล</button>
+    </div>
+
+    <!-- ================= เช็คชื่อ ================= -->
+    <div id="attendance" class="tab-content">
+        <label><b>1. เลือกวันที่:</b></label>
+        <div style="display: flex; align-items: center; margin-bottom: 15px;">
+            <input type="date" id="dateSelect" onchange="onDateChange()">
+            <span id="dayLabel" class="day-badge">กรุณาเลือกวันที่</span>
+        </div>
+
+        <label><b>2. คาบเรียนที่สอน:</b></label>
+        <select id="classSelect" onchange="renderAttendance()"></select>
+
+        <table>
+            <thead>
+                <tr><th width="10%">ลำดับ</th><th width="40%">ชื่อ - สกุล</th><th width="50%">สถานะ</th></tr>
+            </thead>
+            <tbody id="attendanceBody"></tbody>
+        </table>
+        <div style="margin-top: 10px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px;">
+            <span id="attMeta" style="font-size:13px; color:#6b7280;"></span>
+            <span style="font-size: 14px; color: gray;">* บันทึกอัตโนมัติ + ซิงก์แบบ Realtime</span>
+        </div>
+    </div>
+
+    <!-- ================= ตารางสอนของฉัน (ครู) ================= -->
+    <div id="myschedule" class="tab-content">
+        <h3>🗓️ ตารางสอนของฉัน</h3>
+        <div id="myScheduleInfo"></div>
+        <div id="myScheduleWrap"></div>
+    </div>
+
+    <!-- ================= ตั้งค่า (แอดมิน) ================= -->
+    <div id="settings" class="tab-content">
+        <div class="sub-tabs">
+            <button class="sub-tab-btn active" onclick="switchSettingsTab('students', this)">👥 รายชื่อนักเรียน</button>
+            <button class="sub-tab-btn" onclick="switchSettingsTab('classrooms', this)">🏫 จัดการห้องเรียน</button>
+            <button class="sub-tab-btn" onclick="switchSettingsTab('subjects', this)">📚 จัดการรายวิชา</button>
+            <button class="sub-tab-btn" onclick="switchSettingsTab('schedule', this)">🗓️ จัดตารางเรียน</button>
+            <button class="sub-tab-btn" onclick="switchSettingsTab('semesters', this)">📅 ภาคเรียน/ปีการศึกษา</button>
+            <button class="sub-tab-btn" onclick="switchSettingsTab('users', this)">👤 จัดการผู้ใช้</button>
+        </div>
+
+        <!-- นักเรียน -->
+        <div id="settings-students" class="sub-tab-content active">
+            <h3>จัดการรายชื่อนักเรียน <small style="color:#6b7280;font-weight:400;">(ภาคเรียนปัจจุบัน)</small></h3>
+            <label><b>เลือกห้องเรียน:</b></label>
+            <select id="settingClassSelect" onchange="renderSettings()"></select>
+            <div style="background: #f9fafb; padding: 15px; border-radius: 5px; border: 1px solid var(--border); margin-bottom: 15px;">
+                <label><b>เพิ่มนักเรียน (หลายรายการพร้อมกัน):</b></label>
+                <textarea id="bulkNames" rows="5" placeholder="พิมพ์เลขประจำตัว และชื่อ 1 คนต่อ 1 บรรทัด เช่น 08070 เด็กชายชินกร สุภาพ"></textarea>
+                <button class="btn-primary" onclick="addBulkStudents()">➕ เพิ่มรายชื่อทั้งหมด</button>
+                <button class="btn-danger" style="float: right;" onclick="clearAllStudents()">🗑️ ลบรายชื่อทั้งหมดในห้องนี้</button>
+            </div>
+            <table>
+                <thead><tr><th width="10%">ที่</th><th width="70%">ชื่อ - สกุล</th><th width="20%">จัดการ</th></tr></thead>
+                <tbody id="settingsBody"></tbody>
+            </table>
+        </div>
+
+        <!-- ห้องเรียน -->
+        <div id="settings-classrooms" class="sub-tab-content">
+            <div class="settings-form-box">
+                <h4 id="classFormTitle">➕ เพิ่มห้องเรียนใหม่</h4>
+                <div class="form-row">
+                    <div><label>ชื่อห้องเรียน</label><input type="text" id="newClassName" placeholder="เช่น ม.1/3"></div>
+                    <div>
+                        <label>ระดับชั้น</label>
+                        <select id="newClassLevel">
+                            <option value="ป.1">ป.1</option><option value="ป.2">ป.2</option><option value="ป.3">ป.3</option>
+                            <option value="ป.4">ป.4</option><option value="ป.5">ป.5</option><option value="ป.6">ป.6</option>
+                            <option value="ม.1">ม.1</option><option value="ม.2">ม.2</option><option value="ม.3">ม.3</option>
+                            <option value="ม.4">ม.4</option><option value="ม.5">ม.5</option><option value="ม.6">ม.6</option>
+                        </select>
+                    </div>
+                    <div><label>รายวิชา</label><select id="newClassSubject"></select></div>
+                    <div><label>ครูผู้สอน (กำหนดการสอน)</label><select id="newClassTeacher"></select></div>
+                </div>
+                <button class="btn-primary" id="classSaveBtn" onclick="saveClassroom()">➕ เพิ่มห้องเรียน</button>
+                <button class="btn-danger" id="classCancelBtn" onclick="cancelClassroomEdit()" style="display:none;">ยกเลิก</button>
+                <p class="form-hint">* ครูที่ถูกกำหนดในห้อง จะเห็นห้องนี้ในหน้าเช็คชื่อ ตารางสอน และรายงานของตนเอง</p>
+            </div>
+            <table>
+                <thead><tr><th>ห้องเรียน</th><th>ระดับ</th><th>รายวิชา</th><th>ครูผู้สอน</th><th>วันสอน</th><th>นักเรียน</th><th>จัดการ</th></tr></thead>
+                <tbody id="classroomsBody"></tbody>
+            </table>
+        </div>
+
+        <!-- รายวิชา -->
+        <div id="settings-subjects" class="sub-tab-content">
+            <div class="settings-form-box">
+                <h4 id="subjectFormTitle">➕ เพิ่มรายวิชาใหม่</h4>
+                <div class="form-row">
+                    <div><label>รหัสวิชา</label><input type="text" id="newSubjectCode" placeholder="เช่น ว21104"></div>
+                    <div style="grid-column: span 2;"><label>ชื่อรายวิชา</label><input type="text" id="newSubjectName" placeholder="เช่น วิทยาการคำนวณ 1"></div>
+                </div>
+                <button class="btn-primary" id="subjectSaveBtn" onclick="saveSubject()">➕ เพิ่มรายวิชา</button>
+                <button class="btn-danger" id="subjectCancelBtn" onclick="cancelSubjectEdit()" style="display:none;">ยกเลิก</button>
+            </div>
+            <table>
+                <thead><tr><th width="15%">รหัสวิชา</th><th width="35%">ชื่อรายวิชา</th><th width="30%">ใช้ในห้องเรียน</th><th width="20%">จัดการ</th></tr></thead>
+                <tbody id="subjectsBody"></tbody>
+            </table>
+        </div>
+
+        <!-- ตารางเรียน -->
+        <div id="settings-schedule" class="sub-tab-content">
+            <div class="settings-form-box">
+                <h4 id="scheduleFormTitle">➕ เพิ่มคาบสอนในตารางเรียน</h4>
+                <div class="form-row">
+                    <div>
+                        <label>วันสอน</label>
+                        <select id="newScheduleDay">
+                            <option value="0">วันอาทิตย์</option>
+                            <option value="1" selected>วันจันทร์</option>
+                            <option value="2">วันอังคาร</option>
+                            <option value="3">วันพุธ</option>
+                            <option value="4">วันพฤหัสบดี</option>
+                            <option value="5">วันศุกร์</option>
+                            <option value="6">วันเสาร์</option>
+                        </select>
+                    </div>
+                    <div><label>ห้องเรียน (ครูตามห้อง)</label><select id="newScheduleClass"></select></div>
+                    <div><label>คาบเริ่มต้น</label><input type="number" id="newScheduleStart" min="1" max="12" value="1"></div>
+                    <div><label>คาบสิ้นสุด</label><input type="number" id="newScheduleEnd" min="1" max="12" value="2"></div>
+                </div>
+                <button class="btn-primary" id="scheduleSaveBtn" onclick="saveScheduleEntry()">➕ เพิ่มในตาราง</button>
+                <button class="btn-danger" id="scheduleCancelBtn" onclick="cancelScheduleEdit()" style="display:none;">ยกเลิก</button>
+                <p class="form-hint">💡 คลิกช่องว่างในตารางด้านล่างเพื่อเพิ่มคาบเรียนเร็ว ๆ หรือคลิกช่องที่มีวิชาเพื่อแก้ไข</p>
+            </div>
+            <h3 style="margin-bottom:5px;">🗓️ ตารางเรียนแบบตาราง (Visual)</h3>
+            <div id="scheduleVisualWrap"></div>
+            <h3 style="margin-top:20px;">📋 รายการคาบสอนทั้งหมด</h3>
+            <table>
+                <thead><tr><th>วัน</th><th>คาบ</th><th>ห้องเรียน</th><th>รายวิชา</th><th>ครูผู้สอน</th><th>จัดการ</th></tr></thead>
+                <tbody id="scheduleBody"></tbody>
+            </table>
+        </div>
+
+        <!-- ภาคเรียน -->
+        <div id="settings-semesters" class="sub-tab-content">
+            <div class="settings-form-box">
+                <h4 id="semFormTitle">➕ เพิ่มภาคเรียนใหม่</h4>
+                <div class="form-row">
+                    <div>
+                        <label>ภาคเรียนที่</label>
+                        <select id="newSemTerm"><option value="1">1</option><option value="2">2</option><option value="3">3 (ฤดูร้อน)</option></select>
+                    </div>
+                    <div><label>ปีการศึกษา (พ.ศ.)</label><input type="number" id="newSemYear" min="2500" max="2700" oninput="updateStudentCopyOption()"></div>
+                    <div><label>จำนวนสัปดาห์เรียน (ค่าปกติ 18)</label><input type="number" id="newSemWeeks" value="18" min="1" max="60"></div>
+                    <div><label>วันแรกของภาคเรียน</label><input type="date" id="newSemStart"></div>
+                </div>
+                <div class="form-row" id="semCopyRow">
+                    <div style="grid-column: span 3;">
+                        <label class="check-item" style="font-size:14px; font-weight:600;">
+                            <input type="checkbox" id="newSemCopyStudents">
+                            <span id="copyStudentsLabel">คัดลอกรายชื่อนักเรียนด้วย</span>
+                        </label>
+                        <small id="copyStudentsHint" class="form-hint"></small>
+                    </div>
+                </div>
+                <button class="btn-primary" id="semSaveBtn" onclick="saveSemester()">➕ เพิ่มภาคเรียน</button>
+                <button class="btn-danger" id="semCancelBtn" onclick="cancelSemesterEdit()" style="display:none;">ยกเลิก</button>
+                <p class="form-hint">* ระบบจะคัดลอก ห้องเรียน / รายวิชา / ตารางเรียน จากภาคเรียนปัจจุบันเสมอ และคัดลอกรายชื่อนักเรียน<b>เฉพาะเมื่อเป็นปีการศึกษาเดียวกัน</b> — <b>ไม่คัดลอกข้อมูลเช็คชื่อทุกกรณี</b></p>
+            </div>
+            <table>
+                <thead><tr><th>ภาคเรียน</th><th>สัปดาห์</th><th>วันเปิดเรียน</th><th>ข้อมูล</th><th>จัดการ</th></tr></thead>
+                <tbody id="semestersBody"></tbody>
+            </table>
+        </div>
+
+        <!-- ผู้ใช้ -->
+        <div id="settings-users" class="sub-tab-content">
+            <div class="settings-form-box">
+                <h4 id="userFormTitle">➕ เพิ่มผู้ใช้ใหม่</h4>
+                <div class="form-row">
+                    <div><label>ชื่อ - สกุล</label><input type="text" id="newUserName" placeholder="เช่น นายสมชาย ใจดี"></div>
+                    <div><label>ชื่อผู้ใช้ (เข้าสู่ระบบ)</label><input type="text" id="newUserUsername" placeholder="ภาษาอังกฤษ/ตัวเลข"></div>
+                    <div><label>รหัสผ่าน</label><input type="password" id="newUserPassword" placeholder="อย่างน้อย 4 ตัว"></div>
+                    <div>
+                        <label>บทบาท</label>
+                        <select id="newUserRole">
+                            <option value="teacher">ครูผู้สอน</option>
+                            <option value="admin">ผู้ดูแลระบบ (แอดมิน)</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="btn-primary" id="userSaveBtn" onclick="saveUser()">➕ เพิ่มผู้ใช้</button>
+                <button class="btn-danger" id="userCancelBtn" onclick="cancelUserEdit()" style="display:none;">ยกเลิก</button>
+                <p class="form-hint">* ครูจะเข้าสู่ระบบและเห็นเฉพาะ หน้าเช็คชื่อ / ตารางสอน / รายงาน / สำรอง-กู้คืน ของห้องที่ตนสอนเท่านั้น</p>
+            </div>
+            <table>
+                <thead><tr><th>ชื่อ - สกุล</th><th>ชื่อผู้ใช้</th><th>บทบาท</th><th>ห้องที่สอน (ภาคนี้)</th><th>จัดการ</th></tr></thead>
+                <tbody id="usersBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ================= สำรอง/กู้คืน ================= -->
+    <div id="backup" class="tab-content">
+        <div id="backupExportBox"></div>
+        <div class="settings-form-box">
+            <h4>📂 กู้คืนข้อมูล (Import) — เลือกได้ว่าจะกู้คืนส่วนไหน</h4>
+            <input type="file" id="restoreFile" accept=".json" onchange="previewRestore(event)" style="margin-bottom:10px; padding:8px; border:1px solid var(--border); border-radius:5px; font-family:inherit;">
+            <div id="restorePreview"></div>
+        </div>
+    </div>
+
+    <!-- ================= รายงาน ================= -->
+    <div id="reports" class="tab-content">
+        <div class="report-toolbar">
+            <div class="toolbar-grid">
+                <div>
+                    <label><b>ระดับชั้น</b></label>
+                    <select id="reportLevel" onchange="refreshReportClassOptions(); renderReports();"><option value="all">ทุกระดับชั้น</option></select>
+                </div>
+                <div>
+                    <label><b>ห้อง</b></label>
+                    <select id="reportClass" onchange="renderReports()"><option value="all">ทุกห้อง</option></select>
+                </div>
+                <div>
+                    <label><b>วันแรกที่เริ่มเรียน</b></label>
+                    <input type="date" id="reportStart" onchange="renderReports()">
+                </div>
+                <div>
+                    <label><b>จำนวนสัปดาห์ (ค่าปกติ 18)</b></label>
+                    <input type="number" id="reportWeeks" min="1" max="60" value="18" onchange="onWeeksChange()" style="padding:10px; border:1px solid var(--primary); border-radius:5px; font-size:16px; font-family:inherit; box-sizing:border-box; width:100%; font-weight:bold;">
+                </div>
+                <div>
+                    <label><b>รวมคาบเรียน</b></label>
+                    <input type="text" id="weekRangeDisplay" readonly value="18 สัปดาห์" style="padding:10px; border:1px solid var(--border); border-radius:5px; background:#e5e7eb; font-weight:bold; font-family:inherit; box-sizing:border-box; width:100%;">
+                </div>
+                <div>
+                    <label><b>กรองสถานะผลการเรียน</b></label>
+                    <select id="reportStatusFilter" onchange="renderReports()" style="border-color: var(--primary);">
+                        <option value="all">ทั้งหมด</option>
+                        <option value="risk">มส. + เรียนซ้ำ</option>
+                        <option value="ms">เฉพาะ มส.</option>
+                        <option value="repeat">เฉพาะ เรียนซ้ำ</option>
+                        <option value="normal">เฉพาะ ปกติ</option>
+                    </select>
+                </div>
+            </div>
+            <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn-primary" onclick="renderReports()">🔄 คำนวณรายงาน</button>
+                <button class="btn-success" onclick="window.print()">🖨️ พิมพ์รายงานแบบฟอร์ม มส.</button>
+            </div>
+            <p class="report-note">เกณฑ์: จำนวนสัปดาห์ (แก้ได้ ค่าปกติ 18) × คาบ/สัปดาห์ตามตารางเรียน | ต่ำกว่า 80% = มส., ต่ำกว่า 60% = เรียนซ้ำ | ครูจะเห็นเฉพาะรายงานของห้องที่ตนสอน</p>
+        </div>
+
+        <div id="reportSummary" class="report-grid"></div>
+
+        <div class="report-section">
+            <h3>1. สรุปนักเรียนที่ติด มส. / เรียนซ้ำ แยกตามห้อง</h3>
+            <div class="report-table-wrap">
+                <table class="report-table">
+                    <thead><tr><th>ห้อง</th><th>นักเรียนทั้งหมด</th><th>ติด มส.</th><th>เรียนซ้ำ</th><th>ปกติ</th><th>เฉลี่ยการมาเรียน</th></tr></thead>
+                    <tbody id="roomSummaryBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="report-section">
+            <h3>2. รายชื่อนักเรียนและสถิติรายบุคคล (ข้อมูลที่จะถูกพิมพ์)</h3>
+            <div class="report-table-wrap">
+                <table class="report-table">
+                    <thead><tr><th>ห้อง</th><th>ลำดับ</th><th>ชื่อ - สกุล</th><th>มาเรียน</th><th>ขาด</th><th>ลา</th><th>สาย</th><th>รวมเรียน</th><th>ร้อยละ</th><th>ผล</th></tr></thead>
+                    <tbody id="studentSummaryBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="print-formal"></div>
+    </div>
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    const STORE_KEY = 'kruWichanData';
+    const SESSION_KEY = 'kwSessionUser';
+    const BC_NAME = 'kruWichanSync';
+    const tabSessionId = 'tab_' + Math.random().toString(36).slice(2);
+
+    const dayNames = ["วันอาทิตย์", "วันจันทร์", "วันอังคาร", "วันพุธ", "วันพฤหัสบดี", "วันศุกร์", "วันเสาร์"];
+    const thaiMonths = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+
+    // ==================== ค่าเริ่มต้น (ครั้งแรก) ====================
+    const DEFAULT_SUBJECTS = [
+        { id: 'sub_21104', code: 'ว21104', name: 'วิทยาการคำนวณ 1' },
+        { id: 'sub_22104', code: 'ว22104', name: 'วิทยาการคำนวณ 2' },
+        { id: 'sub_23104', code: 'ว23104', name: 'วิทยาการคำนวณ 3' }
+    ];
+    const DEFAULT_CLASSES = [
+        { id: 'm3-1', name: 'ม.3/1', level: 'ม.3', subjectId: 'sub_23104', teacherId: null },
+        { id: 'm3-2', name: 'ม.3/2', level: 'ม.3', subjectId: 'sub_23104', teacherId: null },
+        { id: 'm1-1', name: 'ม.1/1', level: 'ม.1', subjectId: 'sub_21104', teacherId: null },
+        { id: 'm1-2', name: 'ม.1/2', level: 'ม.1', subjectId: 'sub_21104', teacherId: null },
+        { id: 'm2-1', name: 'ม.2/1', level: 'ม.2', subjectId: 'sub_22104', teacherId: null },
+        { id: 'm2-2', name: 'ม.2/2', level: 'ม.2', subjectId: 'sub_22104', teacherId: null }
+    ];
+    const DEFAULT_SCHEDULE = [
+        { day: 1, classId: 'm3-1', startPeriod: 1, endPeriod: 2 },
+        { day: 2, classId: 'm3-2', startPeriod: 3, endPeriod: 4 },
+        { day: 3, classId: 'm1-1', startPeriod: 1, endPeriod: 2 },
+        { day: 4, classId: 'm1-2', startPeriod: 3, endPeriod: 4 },
+        { day: 5, classId: 'm2-1', startPeriod: 1, endPeriod: 2 },
+        { day: 5, classId: 'm2-2', startPeriod: 3, endPeriod: 4 }
+    ];
+
+    function hashPassword(pw) {
+        const salted = 'kw$' + pw + '#kw2024';
+        let h1 = 5381, h2 = 52711;
+        for (let i = 0; i < salted.length; i++) {
+            const c = salted.charCodeAt(i);
+            h1 = ((h1 << 5) + h1 + c) | 0;
+            h2 = ((h2 << 7) + h2 + c * 31) | 0;
+        }
+        return 'h' + (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36);
+    }
+
+    function defaultUsers() {
+        return [{ id: 'u_admin', username: 'admin', password: hashPassword('admin1234'), name: 'ผู้ดูแลระบบ', role: 'admin' }];
+    }
+
+    function normalizeSemester(sem) {
+        sem.classes = Array.isArray(sem.classes) ? sem.classes : [];
+        sem.subjects = Array.isArray(sem.subjects) ? sem.subjects : [];
+        sem.schedule = Array.isArray(sem.schedule) ? sem.schedule : [];
+        sem.students = (sem.students && typeof sem.students === 'object') ? sem.students : {};
+        sem.attendance = (sem.attendance && typeof sem.attendance === 'object') ? sem.attendance : {};
+        sem.weeks = parseInt(sem.weeks) || 18;
+        sem.term = String(sem.term || '1');
+        sem.year = parseInt(sem.year) || (new Date().getFullYear() + 543);
+        sem.startDate = sem.startDate || '';
+        if (!sem.name) sem.name = 'ภาคเรียนที่ ' + sem.term + '/' + sem.year;
+        sem.classes.forEach(c => { if (!('teacherId' in c)) c.teacherId = null; });
+        const students = {};
+        sem.classes.forEach(c => { students[c.id] = Array.isArray(sem.students[c.id]) ? sem.students[c.id] : []; });
+        sem.students = students;
+        return sem;
+    }
+
+    function migrateOldData(old) {
+        const id = 'sem_' + Date.now();
+        const sem = normalizeSemester({
+            id, name: 'ภาคเรียนที่ 1/2568', term: '1', year: 2568, weeks: 18, startDate: '2026-05-15',
+            classes: Array.isArray(old.classes) ? old.classes : JSON.parse(JSON.stringify(DEFAULT_CLASSES)),
+            subjects: Array.isArray(old.subjects) ? old.subjects : JSON.parse(JSON.stringify(DEFAULT_SUBJECTS)),
+            schedule: Array.isArray(old.schedule) ? old.schedule : JSON.parse(JSON.stringify(DEFAULT_SCHEDULE)),
+            students: old.students || {},
+            attendance: old.attendance || {}
+        });
+        return { version: 4, currentSemesterId: id, semesters: { [id]: sem }, users: defaultUsers(), meta: {} };
+    }
+
+    let appData;
+    try {
+        const stored = JSON.parse(localStorage.getItem(STORE_KEY));
+        appData = (stored && stored.semesters && Object.keys(stored.semesters).length) ? stored : migrateOldData(stored || {});
+    } catch (e) {
+        appData = migrateOldData({});
+    }
+    if (!Array.isArray(appData.users)) appData.users = defaultUsers();
+    if (!appData.users.length) appData.users = defaultUsers();
+    if (!appData.meta) appData.meta = {};
+    Object.keys(appData.semesters).forEach(id => {
+        appData.semesters[id] = normalizeSemester(Object.assign({ id }, appData.semesters[id]));
+    });
+
+    function ensureCurrentSemester() {
+        const ids = Object.keys(appData.semesters);
+        if (!ids.includes(appData.currentSemesterId)) appData.currentSemesterId = ids[0] || null;
+        if (!appData.currentSemesterId) {
+            const id = 'sem_' + Date.now();
+            const y = new Date().getFullYear() + 543;
+            appData.semesters[id] = normalizeSemester({ id, term: '1', year: y, weeks: 18, name: 'ภาคเรียนที่ 1/' + y });
+            appData.currentSemesterId = id;
+        }
+    }
+    ensureCurrentSemester();
+
+    function saveDataToLocal() { localStorage.setItem(STORE_KEY, JSON.stringify(appData)); }
+
+    // ==================== Realtime (BroadcastChannel + storage event) ====================
+    let bc = null;
+    try { bc = new BroadcastChannel(BC_NAME); } catch (e) { /* เบราว์เซอร์เก่า */ }
+
+    function updateRtBadge() {
+        const el = document.getElementById('rtBadge');
+        const m = appData.meta;
+        if (m && m.lastBy && m.lastAt) {
+            const t = new Date(m.lastAt).toLocaleTimeString('th-TH');
+            el.textContent = '🟢 Realtime · อัปเดตล่าสุด: ' + m.lastBy + ' · ' + t;
+            el.className = 'rt-badge';
+        } else {
+            el.textContent = '🟢 Realtime พร้อมใช้งาน';
+        }
+    }
+
+    function commit() {
+        const u = currentUser();
+        if (u) appData.meta = { lastBy: u.name, lastAt: Date.now() };
+        saveDataToLocal();
+        if (bc) { try { bc.postMessage({ from: tabSessionId }); } catch (e) {} }
+        updateRtBadge();
+    }
+
+    function reloadFromStorage() {
+        try {
+            const fresh = JSON.parse(localStorage.getItem(STORE_KEY));
+            if (fresh && fresh.semesters) appData = fresh;
+        } catch (e) {}
+        if (!Array.isArray(appData.users) || !appData.users.length) appData.users = defaultUsers();
+        if (!appData.meta) appData.meta = {};
+        Object.keys(appData.semesters).forEach(id => {
+            appData.semesters[id] = normalizeSemester(Object.assign({ id }, appData.semesters[id]));
+        });
+        ensureCurrentSemester();
+    }
+
+    function rerenderCurrentView() {
+        const active = document.querySelector('.tab-content.active');
+        if (!active) return;
+        const id = active.id;
+        if (id === 'attendance') onDateChange();
+        else if (id === 'myschedule') renderMySchedule();
+        else if (id === 'reports') renderReports();
+        else if (id === 'settings') renderCurrentSettingsTab();
+        else if (id === 'backup') renderBackupTab();
+    }
+
+    if (bc) {
+        bc.onmessage = function(e) {
+            if (e.data && e.data.from === tabSessionId) return;
+            reloadFromStorage();
+            const u = currentUser();
+            if (!u) { doLogout(true); return; }
+            updateRtBadge();
+            const m = appData.meta;
+            showToast('🔄 ได้รับข้อมูลอัปเดต' + (m.lastBy ? 'จาก: ' + m.lastBy : ''));
+            renderSemesterSelect();
+            syncSemesterScopedInputs();
+            rerenderCurrentView();
+        };
+    }
+    window.addEventListener('storage', function(e) {
+        if (e.key !== STORE_KEY) return;
+        reloadFromStorage();
+        const u = currentUser();
+        if (!u) { doLogout(true); return; }
+        updateRtBadge();
+        renderSemesterSelect();
+        syncSemesterScopedInputs();
+        rerenderCurrentView();
+    });
+
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 2800);
+    }
+
+    // ==================== ผู้ใช้และสิทธิ์ ====================
+    function currentUser() {
+        const id = sessionStorage.getItem(SESSION_KEY);
+        return appData.users.find(u => u.id === id) || null;
+    }
+    function isAdmin() { const u = currentUser(); return !!u && u.role === 'admin'; }
+    function isTeacher() { const u = currentUser(); return !!u && u.role === 'teacher'; }
+
+    window.doLogin = function() {
+        const username = document.getElementById('loginUsername').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        const user = appData.users.find(x => x.username.toLowerCase() === username.toLowerCase() && x.password === hashPassword(password));
+        const err = document.getElementById('loginError');
+        if (!user) { err.textContent = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'; return; }
+        sessionStorage.setItem(SESSION_KEY, user.id);
+        document.getElementById('loginUsername').value = '';
+        document.getElementById('loginPassword').value = '';
+        err.textContent = '';
+        document.getElementById('loginOverlay').classList.add('hidden');
+        appReady();
+        showToast('👋 ยินดีต้อนรับ ' + user.name);
+    };
+
+    window.doLogout = function(silent) {
+        sessionStorage.removeItem(SESSION_KEY);
+        document.getElementById('loginOverlay').classList.remove('hidden');
+        document.getElementById('loginError').textContent = silent ? 'เซสชันหมดอายุ หรือบัญชีถูกลบ กรุณาเข้าสู่ระบบใหม่' : '';
+        if (!silent) showToast('ออกจากระบบแล้ว');
+    };
+
+    window.changeMyPassword = function() {
+        const u = currentUser();
+        if (!u) return;
+        const cur = prompt('กรุณากรอกรหัสผ่านปัจจุบัน:');
+        if (cur === null) return;
+        if (hashPassword(cur) !== u.password) { alert('รหัสผ่านปัจจุบันไม่ถูกต้อง'); return; }
+        const nw = prompt('กรอกรหัสผ่านใหม่ (อย่างน้อย 4 ตัวอักษร):');
+        if (nw === null) return;
+        if (nw.length < 4) { alert('รหัสผ่านสั้นเกินไป'); return; }
+        u.password = hashPassword(nw);
+        commit();
+        alert('เปลี่ยนรหัสผ่านสำเร็จ');
+    };
+
+    function renderUserBar() {
+        const u = currentUser();
+        if (!u) return;
+        const roleText = u.role === 'admin' ? 'แอดมิน' : 'ครูผู้สอน';
+        const roleClass = u.role === 'admin' ? 'role-admin' : 'role-teacher';
+        document.getElementById('userBarInfo').innerHTML =
+            '👤 <span class="who">' + u.name + '</span><span class="role-badge ' + roleClass + '">' + roleText + '</span>' +
+            (u.role === 'teacher' ? ' <small style="color:#6b7280;">(เห็นเฉพาะข้อมูลของตนเอง)</small>' : '');
+    }
+
+    function applyRoleUI() {
+        const admin = isAdmin();
+        document.getElementById('tabSettings').style.display = admin ? '' : 'none';
+        document.getElementById('tabMySchedule').style.display = admin ? 'none' : '';
+        document.getElementById('btnManageSemester').style.display = admin ? '' : 'none';
+        // ถ้าแท็บที่เปิดอยู่ไม่ได้รับอนุญาต ให้กลับไปหน้าเช็คชื่อ
+        const active = document.querySelector('.tab-content.active');
+        if (active && ((active.id === 'settings' && !admin) || (active.id === 'myschedule' && admin))) {
+            switchTab('attendance', document.getElementById('tabAttendance'));
+        }
+    }
+
+    // ==================== Helpers ข้อมูล ====================
+    function getSem() { return appData.semesters[appData.currentSemesterId]; }
+    function getClassById(id) { return getSem().classes.find(c => c.id === id); }
+    function getSubjectById(id) { return getSem().subjects.find(s => s.id === id); }
+    function getTeacherById(id) { return appData.users.find(u => u.id === id && u.role === 'teacher') || null; }
+
+    // ครูเห็นเฉพาะห้องของตัวเอง / แอดมินเห็นทั้งหมด
+    function visibleClasses() {
+        const u = currentUser();
+        if (u && u.role === 'teacher') return getSem().classes.filter(c => c.teacherId === u.id);
+        return getSem().classes;
+    }
+    function myClassIds() { return visibleClasses().map(c => c.id); }
+
+    function getClassInfo(classId) {
+        const cls = getClassById(classId);
+        if (!cls) return null;
+        const subj = getSubjectById(cls.subjectId);
+        return { level: cls.level || '', room: cls.name, subject: subj ? subj.name : '', code: subj ? subj.code : '', teacherId: cls.teacherId };
+    }
+    function getClassDaysText(classId) {
+        const days = [...new Set(getSem().schedule.filter(s => s.classId === classId).map(s => s.day))].sort((a,b)=>a-b);
+        return days.map(d => dayNames[d].replace('วัน','')).join(', ');
+    }
+    function getScheduleForDay(dayOfWeek) {
+        const mine = new Set(myClassIds());
+        return getSem().schedule
+            .filter(s => s.day === dayOfWeek && getClassById(s.classId) && mine.has(s.classId))
+            .sort((a, b) => a.startPeriod - b.startPeriod)
+            .map(s => {
+                const cls = getClassById(s.classId);
+                const subj = getSubjectById(cls.subjectId);
+                const periodText = s.startPeriod === s.endPeriod ? `คาบ ${s.startPeriod}` : `คาบ ${s.startPeriod}, ${s.endPeriod}`;
+                return { value: s.classId, text: `${periodText} | ${cls.name} | ${subj ? subj.code + ' ' + subj.name : 'ไม่ระบุวิชา'}` };
+            });
+    }
+    function getClassPeriodInfo(classId) {
+        const entries = getSem().schedule.filter(s => s.classId === classId);
+        const weeklyPeriods = entries.reduce((sum, s) => sum + (s.endPeriod - s.startPeriod + 1), 0);
+        const periodsPerSession = entries.length > 0 ? weeklyPeriods / entries.length : 2;
+        return { weeklyPeriods: weeklyPeriods || 2, periodsPerSession };
+    }
+    function classColor(classId) {
+        const palette = ['#dbeafe','#dcfce7','#fef3c7','#fee2e2','#ede9fe','#cffafe','#ffe4e6','#d1fae5','#fef9c3','#e0e7ff'];
+        const idx = getSem().classes.findIndex(c => c.id === classId);
+        return palette[(idx >= 0 ? idx : 0) % palette.length];
+    }
+    function rawStatus(v) { return (v && typeof v === 'object') ? v.s : v; }
+
+    function parseStudentName(rawName) {
+        let stdId = '';
+        let cleanName = rawName.trim();
+        const match = rawName.match(/^(\d+)\s+(.*)/) || rawName.match(/^(\d+)[\.\s\t]+(.*)/);
+        if (match) { stdId = match[1]; cleanName = match[2]; }
+        return { stdId, cleanName };
+    }
+
+    // ==================== Tabs ====================
+    let currentSettingsTab = 'students';
+
+    window.switchTab = function(tabId, btnEl) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        if (btnEl) btnEl.classList.add('active');
+        if (tabId === 'attendance') onDateChange();
+        if (tabId === 'myschedule') renderMySchedule();
+        if (tabId === 'settings') renderCurrentSettingsTab();
+        if (tabId === 'reports') renderReports();
+        if (tabId === 'backup') renderBackupTab();
+    };
+
+    window.switchSettingsTab = function(tabName, btnEl) {
+        currentSettingsTab = tabName;
+        document.querySelectorAll('#settings .sub-tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('#settings .sub-tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById('settings-' + tabName).classList.add('active');
+        if (btnEl) btnEl.classList.add('active');
+        renderCurrentSettingsTab();
+    };
+
+    function renderCurrentSettingsTab() {
+        if (currentSettingsTab === 'students') renderSettings();
+        else if (currentSettingsTab === 'classrooms') renderClassrooms();
+        else if (currentSettingsTab === 'subjects') renderSubjects();
+        else if (currentSettingsTab === 'schedule') renderSchedule();
+        else if (currentSettingsTab === 'semesters') renderSemesters();
+        else if (currentSettingsTab === 'users') renderUsers();
+    }
+
+    function renderAllSettingsTabs() {
+        renderSettings(); renderClassrooms(); renderSubjects(); renderSchedule(); renderSemesters(); renderUsers();
+    }
+
+    window.goToSemesterSettings = function() {
+        switchTab('settings', document.getElementById('tabSettings'));
+        const semBtn = [...document.querySelectorAll('#settings .sub-tab-btn')].find(b => (b.getAttribute('onclick')||'').includes("'semesters'"));
+        switchSettingsTab('semesters', semBtn);
+    };
+
+    function renderSemesterSelect() {
+        const sel = document.getElementById('semesterSelect');
+        sel.innerHTML = Object.values(appData.semesters).map(s =>
+            `<option value="${s.id}" ${s.id === appData.currentSemesterId ? 'selected' : ''}>${s.name}${s.id === appData.currentSemesterId ? ' ✓' : ''}</option>`
+        ).join('');
+    }
+
+    function syncSemesterScopedInputs() {
+        const sem = getSem();
+        const rs = document.getElementById('reportStart');
+        if (rs && sem.startDate) rs.value = sem.startDate;
+        const rw = document.getElementById('reportWeeks');
+        if (rw) rw.value = sem.weeks;
+    }
+
+    function refreshAfterDataChange() {
+        cancelClassroomEdit(); cancelSubjectEdit(); cancelScheduleEdit(); cancelSemesterEdit(); cancelUserEdit();
+        ensureCurrentSemester();
+        renderSemesterSelect();
+        syncSemesterScopedInputs();
+        populateAllClassSelects();
+        onDateChange();
+        renderAllSettingsTabs();
+        renderBackupTab();
+        renderReports();
+        renderUserBar();
+    }
+
+    window.switchSemester = function(id) {
+        if (!appData.semesters[id]) { renderSemesterSelect(); return; }
+        if (id === appData.currentSemesterId) return;
+        appData.currentSemesterId = id;
+        commit();
+        refreshAfterDataChange();
+    };
+
+    function populateAllClassSelects() {
+        const sem = getSem();
+        const settingSelect = document.getElementById('settingClassSelect');
+        const sCur = settingSelect.value;
+        settingSelect.innerHTML = sem.classes.map(c => {
+            const daysText = getClassDaysText(c.id);
+            const teacher = c.teacherId ? getTeacherById(c.teacherId) : null;
+            return `<option value="${c.id}">${c.name}${teacher ? ' (ครู: ' + teacher.name + ')' : ''}${daysText ? ' - สอน: ' + daysText : ''}</option>`;
+        }).join('') || '<option value="">ยังไม่มีห้องเรียน</option>';
+        if ([...settingSelect.options].some(o => o.value === sCur)) settingSelect.value = sCur;
+
+        const schedSelect = document.getElementById('newScheduleClass');
+        const schCur = schedSelect.value;
+        schedSelect.innerHTML = sem.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+        if ([...schedSelect.options].some(o => o.value === schCur)) schedSelect.value = schCur;
+
+        const subjSelect = document.getElementById('newClassSubject');
+        const jCur = subjSelect.value;
+        subjSelect.innerHTML = '<option value="">— ไม่ระบุรายวิชา —</option>' +
+            sem.subjects.map(s => `<option value="${s.id}">${s.code ? s.code + ' - ' : ''}${s.name}</option>`).join('');
+        if ([...subjSelect.options].some(o => o.value === jCur)) subjSelect.value = jCur;
+
+        const tSel = document.getElementById('newClassTeacher');
+        const tCur = tSel.value;
+        tSel.innerHTML = '<option value="">— ยังไม่กำหนดครู —</option>' +
+            appData.users.filter(u => u.role === 'teacher').map(u => `<option value="${u.id}">${u.name}</option>`).join('');
+        if ([...tSel.options].some(o => o.value === tCur)) tSel.value = tCur;
+
+        refreshReportLevelOptions();
+        refreshReportClassOptions();
+    }
+
+    // ==================== หน้าเช็คชื่อ ====================
+    function onDateChange() {
+        const dateVal = document.getElementById('dateSelect').value;
+        const select = document.getElementById('classSelect');
+        const dayLabel = document.getElementById('dayLabel');
+        const tbody = document.getElementById('attendanceBody');
+        const meta = document.getElementById('attMeta');
+        meta.innerHTML = '';
+
+        if (!dateVal) {
+            dayLabel.innerText = "กรุณาเลือกวันที่";
+            select.innerHTML = '<option value="">กรุณาเลือกวันที่ก่อน</option>';
+            select.disabled = true;
+            tbody.innerHTML = '';
+            return;
+        }
+        const dayOfWeek = new Date(dateVal + 'T00:00:00').getDay();
+        dayLabel.innerText = "ตรงกับ: " + dayNames[dayOfWeek];
+        select.innerHTML = '';
+        const classesToday = getScheduleForDay(dayOfWeek);
+        if (classesToday.length === 0) {
+            select.innerHTML = '<option value="">ไม่มีตารางสอนของคุณในวันนี้</option>';
+            select.disabled = true;
+            const noClassMsg = isTeacher()
+                ? 'ไม่มีคาบสอนของคุณในวันนี้ (หากไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบเรื่องการกำหนดการสอน)'
+                : 'ไม่มีการเรียนการสอนในวันนี้ (ไปที่ตั้งค่า → จัดตารางเรียน)';
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:gray;">${noClassMsg}</td></tr>`;
+        } else {
+            select.disabled = false;
+            classesToday.forEach(c => { select.innerHTML += `<option value="${c.value}">${c.text}</option>`; });
+            renderAttendance();
+        }
+    }
+    window.onDateChange = onDateChange;
+
+    function renderAttendance() {
+        const classId = document.getElementById('classSelect').value;
+        const date = document.getElementById('dateSelect').value;
+        const tbody = document.getElementById('attendanceBody');
+        const meta = document.getElementById('attMeta');
+        tbody.innerHTML = '';
+        meta.innerHTML = '';
+        if (!date || !classId) return;
+
+        const sem = getSem();
+        const students = sem.students[classId] || [];
+        const recordKey = `${classId}_${date}`;
+        if (!sem.attendance[recordKey]) sem.attendance[recordKey] = {};
+
+        if (students.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;">ยังไม่มีรายชื่อนักเรียนในห้องนี้ (ผู้ดูแลระบบสามารถเพิ่มได้ที่ ตั้งค่า → รายชื่อนักเรียน)</td></tr>`;
+            return;
+        }
+
+        students.forEach((student, index) => {
+            const rec = sem.attendance[recordKey][student.id];
+            const status = rawStatus(rec) || 'present';
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${index + 1}</td>
+                <td>${student.name}</td>
+                <td>
+                    <div class="radio-group">
+                        <label><input type="radio" name="status_${student.id}" value="present" ${status === 'present' ? 'checked' : ''} onchange="markAttendance('${recordKey}', '${student.id}', 'present')"> มา</label>
+                        <label><input type="radio" name="status_${student.id}" value="absent" ${status === 'absent' ? 'checked' : ''} onchange="markAttendance('${recordKey}', '${student.id}', 'absent')"> ขาด</label>
+                        <label><input type="radio" name="status_${student.id}" value="leave" ${status === 'leave' ? 'checked' : ''} onchange="markAttendance('${recordKey}', '${student.id}', 'leave')"> ลา</label>
+                        <label><input type="radio" name="status_${student.id}" value="late" ${status === 'late' ? 'checked' : ''} onchange="markAttendance('${recordKey}', '${student.id}', 'late')"> สาย</label>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // แสดงว่าใครเช็คล่าสุด (Realtime)
+        const entries = Object.values(sem.attendance[recordKey] || {}).filter(v => v && typeof v === 'object' && v.by);
+        if (entries.length) {
+            const last = entries.reduce((a, b) => (a.at > b.at ? a : b));
+            const byUser = appData.users.find(u => u.id === last.by);
+            const me = currentUser();
+            const who = byUser ? (me && byUser.id === me.id ? 'ฉัน' : byUser.name) : '?';
+            meta.innerHTML = '🕒 เช็คล่าสุดโดย: <b>' + who + '</b> เวลา ' + new Date(last.at).toLocaleTimeString('th-TH');
+        }
+    }
+    window.renderAttendance = renderAttendance;
+
+    window.markAttendance = function(recordKey, studentId, status) {
+        getSem().attendance[recordKey][studentId] = { s: status, by: currentUser().id, at: Date.now() };
+        commit();
+        renderAttendance.__skipRerender = true;
+        renderAttendance();
+    };
+
+    // ==================== ตารางสอนของฉัน (ครู) ====================
+    function renderMySchedule() {
+        const info = document.getElementById('myScheduleInfo');
+        const wrap = document.getElementById('myScheduleWrap');
+        const mine = myClassIds();
+        const entries = getSem().schedule.filter(s => mine.has(s.classId));
+        if (!entries.length) {
+            info.innerHTML = '<div class="settings-form-box">ยังไม่มีการกำหนดการสอนให้คุณในภาคเรียนนี้ กรุณาติดต่อผู้ดูแลระบบ</div>';
+            wrap.innerHTML = '';
+            return;
+        }
+        const total = entries.reduce((s, e) => s + (e.endPeriod - e.startPeriod + 1), 0);
+        const days = [...new Set(entries.map(e => e.day))].sort((a,b)=>a-b);
+        info.innerHTML = `<div class="settings-form-box">รวม <b>${total}</b> คาบ/สัปดาห์ | วันสอน: <b>${days.map(d => dayNames[d]).join(', ')}</b> | ห้องที่สอน: <b>${mine.map(id => getClassInfo(id)?.room || id).join(', ')}</b></div>`;
+        wrap.innerHTML = buildScheduleHTML(entries, false);
+    }
+
+    // ==================== Sub-tab: รายชื่อนักเรียน (แอดมิน) ====================
+    function renderSettings() {
+        const classId = document.getElementById('settingClassSelect').value;
+        const tbody = document.getElementById('settingsBody');
+        tbody.innerHTML = '';
+        if (!classId) {
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;">ยังไม่มีห้องเรียน ไปที่แท็บ "จัดการห้องเรียน"</td></tr>`;
+            return;
+        }
+        const students = getSem().students[classId] || [];
+        if (students.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;">ยังไม่มีรายชื่อนักเรียน</td></tr>`;
+            return;
+        }
+        students.forEach((student, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${index + 1}</td>
+                <td>${student.name}</td>
+                <td>
+                    <button class="btn-warning" onclick="editStudent('${classId}', '${student.id}')" style="padding: 5px 10px; font-size: 12px;">แก้ไข</button>
+                    <button class="btn-danger" onclick="deleteStudent('${classId}', '${student.id}')" style="padding: 5px 10px; font-size: 12px;">ลบ</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+    window.renderSettings = renderSettings;
+
+    window.addBulkStudents = function() {
+        const classId = document.getElementById('settingClassSelect').value;
+        if (!classId) { alert('ยังไม่มีห้องเรียน กรุณาไปเพิ่มห้องเรียนก่อน'); return; }
+        const names = document.getElementById('bulkNames').value.split('\n').map(n => n.trim()).filter(n => n !== '');
+        if (names.length === 0) { alert('กรุณาใส่ชื่อนักเรียนก่อนครับ'); return; }
+        names.forEach(name => {
+            getSem().students[classId].push({ id: 'std_' + Date.now() + Math.random().toString(36).substr(2, 9), name: name });
+        });
+        document.getElementById('bulkNames').value = '';
+        commit();
+        refreshAfterDataChange();
+    };
+
+    window.editStudent = function(classId, studentId) {
+        const student = getSem().students[classId].find(s => s.id === studentId);
+        if (!student) return;
+        const newName = prompt("แก้ไขชื่อนักเรียน:", student.name);
+        if (newName !== null && newName.trim() !== "") {
+            student.name = newName.trim();
+            commit();
+            renderSettings();
+        }
+    };
+
+    window.deleteStudent = function(classId, studentId) {
+        if (confirm("ยืนยันการลบนักเรียนคนนี้?")) {
+            getSem().students[classId] = getSem().students[classId].filter(s => s.id !== studentId);
+            commit();
+            refreshAfterDataChange();
+        }
+    };
+
+    window.clearAllStudents = function() {
+        const classId = document.getElementById('settingClassSelect').value;
+        if (!classId) return;
+        if (confirm("คำเตือน: ลบรายชื่อนักเรียนห้องนี้ 'ทั้งหมด' ใช่หรือไม่?")) {
+            getSem().students[classId] = [];
+            commit();
+            refreshAfterDataChange();
+        }
+    };
+
+    // ==================== Sub-tab: ห้องเรียน ====================
+    let editingClassId = null;
+
+    function renderClassrooms() {
+        const tbody = document.getElementById('classroomsBody');
+        const classes = getSem().classes;
+        if (!classes.length) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">ยังไม่มีห้องเรียน กรุณาเพิ่มด้านบน</td></tr>';
+            return;
+        }
+        tbody.innerHTML = classes.map(c => {
+            const subj = getSubjectById(c.subjectId);
+            const teacher = c.teacherId ? getTeacherById(c.teacherId) : null;
+            const stuCount = (getSem().students[c.id] || []).length;
+            const daysText = getClassDaysText(c.id);
+            return `<tr>
+                <td><b>${c.name}</b></td>
+                <td>${c.level || '-'}</td>
+                <td>${subj ? subj.code + ' ' + subj.name : '<span style="color:gray;">ไม่ระบุ</span>'}</td>
+                <td>${teacher ? teacher.name : '<span style="color:#ef4444;">ยังไม่กำหนดครู</span>'}</td>
+                <td>${daysText || '<span style="color:gray;">ยังไม่จัดตาราง</span>'}</td>
+                <td>${stuCount} คน</td>
+                <td>
+                    <button class="btn-warning" onclick="editClassroom('${c.id}')" style="padding:5px 10px;font-size:12px;">แก้ไข</button>
+                    <button class="btn-danger" onclick="deleteClassroom('${c.id}')" style="padding:5px 10px;font-size:12px;">ลบ</button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    window.saveClassroom = function() {
+        const name = document.getElementById('newClassName').value.trim();
+        const level = document.getElementById('newClassLevel').value;
+        const subjectId = document.getElementById('newClassSubject').value || null;
+        const teacherId = document.getElementById('newClassTeacher').value || null;
+        if (!name) { alert('กรุณากรอกชื่อห้องเรียน เช่น ม.1/3'); return; }
+        if (getSem().classes.some(c => c.name === name && c.id !== editingClassId)) {
+            alert('มีห้องเรียนชื่อ "' + name + '" อยู่แล้ว'); return;
+        }
+        if (editingClassId) {
+            const cls = getClassById(editingClassId);
+            if (cls) { cls.name = name; cls.level = level; cls.subjectId = subjectId; cls.teacherId = teacherId; }
+        } else {
+            const id = 'class_' + Date.now();
+            getSem().classes.push({ id, name, level, subjectId, teacherId });
+            getSem().students[id] = [];
+        }
+        commit();
+        refreshAfterDataChange();
+    };
+
+    window.editClassroom = function(classId) {
+        const cls = getClassById(classId);
+        if (!cls) return;
+        editingClassId = classId;
+        document.getElementById('classFormTitle').innerText = '✏️ แก้ไขห้องเรียน: ' + cls.name;
+        document.getElementById('newClassName').value = cls.name;
+        document.getElementById('newClassLevel').value = cls.level || 'ม.1';
+        document.getElementById('newClassSubject').value = cls.subjectId || '';
+        document.getElementById('newClassTeacher').value = cls.teacherId || '';
+        document.getElementById('classSaveBtn').innerText = '💾 บันทึกการแก้ไข';
+        document.getElementById('classCancelBtn').style.display = 'inline-block';
+    };
+
+    window.cancelClassroomEdit = function() {
+        editingClassId = null;
+        document.getElementById('classFormTitle').innerText = '➕ เพิ่มห้องเรียนใหม่';
+        document.getElementById('newClassName').value = '';
+        document.getElementById('newClassTeacher').value = '';
+        document.getElementById('classSaveBtn').innerText = '➕ เพิ่มห้องเรียน';
+        document.getElementById('classCancelBtn').style.display = 'none';
+    };
+
+    window.deleteClassroom = function(classId) {
+        const cls = getClassById(classId);
+        if (!cls) return;
+        const stuCount = (getSem().students[classId] || []).length;
+        if (!confirm(`ยืนยันการลบห้องเรียน "${cls.name}"?\n\nนักเรียน ${stuCount} คน, ตารางเรียน และข้อมูลเช็คชื่อของห้องนี้จะถูกลบด้วย`)) return;
+        const sem = getSem();
+        sem.classes = sem.classes.filter(c => c.id !== classId);
+        delete sem.students[classId];
+        sem.schedule = sem.schedule.filter(s => s.classId !== classId);
+        Object.keys(sem.attendance).forEach(key => {
+            if (key === classId || key.startsWith(classId + '_')) delete sem.attendance[key];
+        });
+        commit();
+        refreshAfterDataChange();
+    };
+
+    // ==================== Sub-tab: รายวิชา ====================
+    let editingSubjectId = null;
+
+    function renderSubjects() {
+        const tbody = document.getElementById('subjectsBody');
+        const subjects = getSem().subjects;
+        if (!subjects.length) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">ยังไม่มีรายวิชา กรุณาเพิ่มด้านบน</td></tr>';
+            return;
+        }
+        tbody.innerHTML = subjects.map(s => {
+            const usedIn = getSem().classes.filter(c => c.subjectId === s.id).map(c => c.name);
+            return `<tr>
+                <td>${s.code || '-'}</td>
+                <td><b>${s.name}</b></td>
+                <td>${usedIn.length ? usedIn.join(', ') : '<span style="color:gray;">ไม่ได้ใช้งาน</span>'}</td>
+                <td>
+                    <button class="btn-warning" onclick="editSubject('${s.id}')" style="padding:5px 10px;font-size:12px;">แก้ไข</button>
+                    <button class="btn-danger" onclick="deleteSubject('${s.id}')" style="padding:5px 10px;font-size:12px;">ลบ</button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    window.saveSubject = function() {
+        const code = document.getElementById('newSubjectCode').value.trim();
+        const name = document.getElementById('newSubjectName').value.trim();
+        if (!name) { alert('กรุณากรอกชื่อรายวิชา'); return; }
+        if (editingSubjectId) {
+            const s = getSubjectById(editingSubjectId);
+            if (s) { s.code = code; s.name = name; }
+        } else {
+            getSem().subjects.push({ id: 'sub_' + Date.now(), code, name });
+        }
+        commit();
+        refreshAfterDataChange();
+    };
+
+    window.editSubject = function(subjectId) {
+        const s = getSubjectById(subjectId);
+        if (!s) return;
+        editingSubjectId = subjectId;
+        document.getElementById('subjectFormTitle').innerText = '✏️ แก้ไขรายวิชา: ' + s.name;
+        document.getElementById('newSubjectCode').value = s.code || '';
+        document.getElementById('newSubjectName').value = s.name;
+        document.getElementById('subjectSaveBtn').innerText = '💾 บันทึกการแก้ไข';
+        document.getElementById('subjectCancelBtn').style.display = 'inline-block';
+    };
+
+    window.cancelSubjectEdit = function() {
+        editingSubjectId = null;
+        document.getElementById('subjectFormTitle').innerText = '➕ เพิ่มรายวิชาใหม่';
+        document.getElementById('newSubjectCode').value = '';
+        document.getElementById('newSubjectName').value = '';
+        document.getElementById('subjectSaveBtn').innerText = '➕ เพิ่มรายวิชา';
+        document.getElementById('subjectCancelBtn').style.display = 'none';
+    };
+
+    window.deleteSubject = function(subjectId) {
+        const usedBy = getSem().classes.filter(c => c.subjectId === subjectId);
+        let msg = 'ยืนยันการลบรายวิชานี้?';
+        if (usedBy.length) msg = `รายวิชานี้ถูกใช้ใน: ${usedBy.map(c => c.name).join(', ')}\n\nหากลบ ห้องเหล่านี้จะเป็น "ไม่ระบุรายวิชา" ลบหรือไม่?`;
+        if (confirm(msg)) {
+            const sem = getSem();
+            sem.subjects = sem.subjects.filter(s => s.id !== subjectId);
+            usedBy.forEach(c => c.subjectId = null);
+            commit();
+            refreshAfterDataChange();
+        }
+    };
+
+    // ==================== Sub-tab: ตารางเรียน ====================
+    let editingScheduleIndex = null;
+
+    function buildScheduleHTML(entries, interactive) {
+        const daysUsed = new Set(entries.map(s => s.day));
+        const days = [1,2,3,4,5,6,0].filter(d => d <= 5 || daysUsed.has(d));
+        let maxPeriod = 8;
+        entries.forEach(s => { if (s.endPeriod > maxPeriod) maxPeriod = s.endPeriod; });
+
+        const cellMap = {};
+        entries.forEach((s) => {
+            const idx = getSem().schedule.indexOf(s);
+            for (let p = s.startPeriod; p <= s.endPeriod; p++) cellMap[s.day + '_' + p] = { entry: s, idx };
+        });
+
+        let html = '<table class="visual-schedule"><thead><tr><th class="vs-corner">คาบ/วัน</th>';
+        days.forEach(d => { html += `<th>${dayNames[d].replace('วัน','')}</th>`; });
+        html += '</tr></thead><tbody>';
+
+        for (let p = 1; p <= maxPeriod; p++) {
+            html += `<tr><td class="period-cell">${p}</td>`;
+            days.forEach(d => {
+                const cell = cellMap[d + '_' + p];
+                if (!cell) {
+                    html += interactive
+                        ? `<td class="empty-cell" title="คลิกเพื่อเพิ่มคาบเรียน" onclick="quickScheduleFill(${d}, ${p})">+</td>`
+                        : `<td class="empty-cell readonly">—</td>`;
+                } else if (cell.entry.startPeriod === p) {
+                    const e = cell.entry;
+                    const cls = getClassById(e.classId);
+                    const subj = cls ? getSubjectById(cls.subjectId) : null;
+                    const teacher = cls && cls.teacherId ? getTeacherById(cls.teacherId) : null;
+                    const span = e.endPeriod - e.startPeriod + 1;
+                    const onclickAttr = interactive ? ` onclick="editScheduleEntry(${cell.idx})" title="คลิกเพื่อแก้ไข"` : '';
+                    const actions = interactive
+                        ? `<div class="vs-actions"><button class="btn-danger" onclick="event.stopPropagation(); deleteScheduleEntry(${cell.idx})">ลบ</button></div>`
+                        : '';
+                    html += `<td class="class-cell" rowspan="${span}" style="background:${classColor(e.classId)};${interactive ? '' : 'cursor:default;'}"${onclickAttr}>
+                        <div class="vs-class">${cls ? cls.name : '(ไม่ทราบห้อง)'}</div>
+                        <div class="vs-subject">${subj ? subj.code + ' ' + subj.name : ''}</div>
+                        ${teacher ? `<div class="vs-teacher">👩‍🏫 ${teacher.name}</div>` : ''}
+                        <div class="vs-period">คาบ ${e.startPeriod}${e.endPeriod !== e.startPeriod ? '-' + e.endPeriod : ''}</div>
+                        ${actions}
+                    </td>`;
+                }
+            });
+            html += '</tr>';
+        }
+        html += '</tbody></table>';
+        return html;
+    }
+
+    function renderSchedule() {
+        document.getElementById('scheduleVisualWrap').innerHTML = buildScheduleHTML(getSem().schedule, true);
+        renderScheduleList();
+    }
+
+    function renderScheduleList() {
+        const tbody = document.getElementById('scheduleBody');
+        const schedule = getSem().schedule;
+        if (!schedule.length) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">ยังไม่มีตารางเรียน คลิกช่องว่างในตารางด้านบน หรือเพิ่มด้านบน</td></tr>';
+            return;
+        }
+        const sorted = schedule.map((s, idx) => ({ ...s, idx })).sort((a, b) => (a.day - b.day) || (a.startPeriod - b.startPeriod));
+        tbody.innerHTML = sorted.map(s => {
+            const cls = getClassById(s.classId);
+            const subj = cls ? getSubjectById(cls.subjectId) : null;
+            const teacher = cls && cls.teacherId ? getTeacherById(cls.teacherId) : null;
+            const periodText = s.startPeriod === s.endPeriod ? `คาบ ${s.startPeriod}` : `คาบ ${s.startPeriod}-${s.endPeriod}`;
+            return `<tr>
+                <td>${dayNames[s.day]}</td>
+                <td><b>${periodText}</b></td>
+                <td>${cls ? cls.name : '<span style="color:gray;">(ห้องถูกลบ)</span>'}</td>
+                <td>${subj ? subj.code + ' ' + subj.name : '-'}</td>
+                <td>${teacher ? teacher.name : '-'}</td>
+                <td>
+                    <button class="btn-warning" onclick="editScheduleEntry(${s.idx})" style="padding:5px 10px;font-size:12px;">แก้ไข</button>
+                    <button class="btn-danger" onclick="deleteScheduleEntry(${s.idx})" style="padding:5px 10px;font-size:12px;">ลบ</button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    window.quickScheduleFill = function(day, period) {
+        cancelScheduleEdit();
+        document.getElementById('newScheduleDay').value = String(day);
+        document.getElementById('newScheduleStart').value = period;
+        document.getElementById('newScheduleEnd').value = period;
+        document.getElementById('scheduleFormTitle').innerText = `➕ เพิ่มคาบสอน: ${dayNames[day]} คาบ ${period} (เลือกห้องแล้วกด "เพิ่มในตาราง")`;
+        document.querySelector('#settings-schedule .settings-form-box').scrollIntoView({ behavior:'smooth', block:'center' });
+    };
+
+    window.saveScheduleEntry = function() {
+        const day = parseInt(document.getElementById('newScheduleDay').value);
+        const classId = document.getElementById('newScheduleClass').value;
+        const startPeriod = parseInt(document.getElementById('newScheduleStart').value);
+        const endPeriod = parseInt(document.getElementById('newScheduleEnd').value);
+        if (!classId) { alert('กรุณาเพิ่มห้องเรียนก่อน (แท็บจัดการห้องเรียน)'); return; }
+        if (!startPeriod || !endPeriod || endPeriod < startPeriod) { alert('กรุณาระบุคาบเริ่มต้นและสิ้นสุดให้ถูกต้อง'); return; }
+        const overlap = getSem().schedule.some((s, i) => {
+            if (editingScheduleIndex !== null && i === editingScheduleIndex) return false;
+            return s.day === day && s.classId === classId && !(endPeriod < s.startPeriod || startPeriod > s.endPeriod);
+        });
+        if (overlap) { alert('ห้องนี้มีตารางสอนในวันและคาบดังกล่าวอยู่แล้ว'); return; }
+        if (editingScheduleIndex !== null) {
+            getSem().schedule[editingScheduleIndex] = { day, classId, startPeriod, endPeriod };
+        } else {
+            getSem().schedule.push({ day, classId, startPeriod, endPeriod });
+        }
+        commit();
+        refreshAfterDataChange();
+    };
+
+    window.editScheduleEntry = function(idx) {
+        const s = getSem().schedule[idx];
+        if (!s) return;
+        editingScheduleIndex = idx;
+        document.getElementById('scheduleFormTitle').innerText = '✏️ แก้ไขคาบสอนในตาราง';
+        document.getElementById('newScheduleDay').value = String(s.day);
+        document.getElementById('newScheduleClass').value = s.classId;
+        document.getElementById('newScheduleStart').value = s.startPeriod;
+        document.getElementById('newScheduleEnd').value = s.endPeriod;
+        document.getElementById('scheduleSaveBtn').innerText = '💾 บันทึกการแก้ไข';
+        document.getElementById('scheduleCancelBtn').style.display = 'inline-block';
+        document.querySelector('#settings-schedule .settings-form-box').scrollIntoView({ behavior:'smooth', block:'center' });
+    };
+
+    window.cancelScheduleEdit = function() {
+        editingScheduleIndex = null;
+        document.getElementById('scheduleFormTitle').innerText = '➕ เพิ่มคาบสอนในตารางเรียน';
+        document.getElementById('newScheduleStart').value = 1;
+        document.getElementById('newScheduleEnd').value = 2;
+        document.getElementById('scheduleSaveBtn').innerText = '➕ เพิ่มในตาราง';
+        document.getElementById('scheduleCancelBtn').style.display = 'none';
+    };
+
+    window.deleteScheduleEntry = function(idx) {
+        const s = getSem().schedule[idx];
+        if (!s) return;
+        const cls = getClassById(s.classId);
+        if (confirm(`ยืนยันการลบตารางสอน: ${dayNames[s.day]} คาบ ${s.startPeriod}-${s.endPeriod} ${cls ? '| ' + cls.name : ''}?`)) {
+            getSem().schedule.splice(idx, 1);
+            commit();
+            refreshAfterDataChange();
+        }
+    };
+
+    // ==================== Sub-tab: ภาคเรียน ====================
+    let editingSemesterId = null;
+
+    function renderSemesters() {
+        const tbody = document.getElementById('semestersBody');
+        tbody.innerHTML = Object.values(appData.semesters).map(s => {
+            const isCur = s.id === appData.currentSemesterId;
+            const stu = Object.values(s.students || {}).reduce((a, b) => a + b.length, 0);
+            const att = Object.keys(s.attendance || {}).length;
+            return `<tr style="${isCur ? 'background:#eff6ff;' : ''}">
+                <td><b>${s.name}</b> ${isCur ? '<span class="badge-ok">ใช้งานอยู่</span>' : ''}</td>
+                <td>${s.weeks} สัปดาห์</td>
+                <td>${s.startDate || '-'}</td>
+                <td>ห้อง ${s.classes.length} | นักเรียน ${stu} คน | เช็คชื่อ ${att} วัน</td>
+                <td>
+                    ${isCur ? '' : `<button class="btn-primary" onclick="switchSemester('${s.id}')" style="padding:5px 10px;font-size:12px;">ใช้งาน</button>`}
+                    <button class="btn-warning" onclick="editSemester('${s.id}')" style="padding:5px 10px;font-size:12px;">แก้ไข</button>
+                    <button class="btn-danger" onclick="deleteSemester('${s.id}')" style="padding:5px 10px;font-size:12px;">ลบ</button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    window.updateStudentCopyOption = function() {
+        if (editingSemesterId) return;
+        const curYear = getSem().year;
+        const inputYear = parseInt(document.getElementById('newSemYear').value);
+        const cb = document.getElementById('newSemCopyStudents');
+        const label = document.getElementById('copyStudentsLabel');
+        const hint = document.getElementById('copyStudentsHint');
+        const sameYear = (inputYear === curYear);
+        cb.disabled = !sameYear;
+        cb.checked = sameYear;
+        label.textContent = 'คัดลอกรายชื่อนักเรียนด้วย (ได้เฉพาะปีการศึกษาเดียวกัน: ' + curYear + ')';
+        hint.textContent = sameYear
+            ? '✓ ปีการศึกษาตรงกับภาคปัจจุบัน (' + curYear + ') จึงคัดลอกรายชื่อนักเรียนได้ — ไม่คัดลอกเช็คชื่อ'
+            : '✗ ปีการศึกษาต่างจากภาคปัจจุบัน (' + curYear + ') ระบบจะไม่คัดลอกรายชื่อนักเรียน';
+    };
+
+    window.saveSemester = function() {
+        const term = document.getElementById('newSemTerm').value;
+        const year = parseInt(document.getElementById('newSemYear').value);
+        const weeks = parseInt(document.getElementById('newSemWeeks').value) || 18;
+        const startDate = document.getElementById('newSemStart').value;
+        if (!year || year < 2500 || year > 2700) { alert('กรุณาระบุปีการศึกษาเป็น พ.ศ. เช่น 2568'); return; }
+        if (weeks < 1 || weeks > 60) { alert('จำนวนสัปดาห์ต้องอยู่ระหว่าง 1-60'); return; }
+        const name = 'ภาคเรียนที่ ' + term + '/' + year;
+        const dup = Object.values(appData.semesters).find(s => s.term === term && String(s.year) === String(year) && s.id !== editingSemesterId);
+        if (dup) { alert('มี ' + name + ' อยู่แล้ว'); return; }
+
+        if (editingSemesterId && appData.semesters[editingSemesterId]) {
+            const sem = appData.semesters[editingSemesterId];
+            sem.term = term; sem.year = year; sem.weeks = weeks; sem.startDate = startDate; sem.name = name;
+        } else {
+            const id = 'sem_' + Date.now();
+            const cur = getSem();
+            const newSem = {
+                id, term, year, weeks, startDate, name,
+                classes: JSON.parse(JSON.stringify(cur.classes)),   // คัดลอกโครงสร้างเสมอ
+                subjects: JSON.parse(JSON.stringify(cur.subjects)),
+                schedule: JSON.parse(JSON.stringify(cur.schedule)),
+                students: {}, attendance: {}                        // ไม่คัดลอกเช็คชื่อทุกกรณี
+            };
+            // คัดลอกรายชื่อนักเรียน เฉพาะปีการศึกษาเดียวกัน
+            const copyStudents = document.getElementById('newSemCopyStudents').checked && !document.getElementById('newSemCopyStudents').disabled;
+            if (copyStudents && year === cur.year) {
+                newSem.students = JSON.parse(JSON.stringify(cur.students));
+            }
+            appData.semesters[id] = normalizeSemester(newSem);
+            appData.currentSemesterId = id;
+        }
+        commit();
+        refreshAfterDataChange();
+        showToast('บันทึกภาคเรียนเรียบร้อย');
+    };
+
+    window.editSemester = function(id) {
+        const s = appData.semesters[id];
+        if (!s) return;
+        editingSemesterId = id;
+        document.getElementById('semFormTitle').innerText = '✏️ แก้ไขภาคเรียน: ' + s.name;
+        document.getElementById('newSemTerm').value = String(s.term);
+        document.getElementById('newSemYear').value = s.year;
+        document.getElementById('newSemWeeks').value = s.weeks;
+        document.getElementById('newSemStart').value = s.startDate || '';
+        document.getElementById('semCopyRow').style.display = 'none';
+        document.getElementById('semSaveBtn').innerText = '💾 บันทึกการแก้ไข';
+        document.getElementById('semCancelBtn').style.display = 'inline-block';
+    };
+
+    window.cancelSemesterEdit = function() {
+        editingSemesterId = null;
+        document.getElementById('semFormTitle').innerText = '➕ เพิ่มภาคเรียนใหม่';
+        document.getElementById('semSaveBtn').innerText = '➕ เพิ่มภาคเรียน';
+        document.getElementById('semCancelBtn').style.display = 'none';
+        document.getElementById('semCopyRow').style.display = '';
+        updateStudentCopyOption();
+    };
+
+    window.deleteSemester = function(id) {
+        const s = appData.semesters[id];
+        if (!s) return;
+        if (!confirm(`ยืนยันการลบ ${s.name}?\n\nข้อมูลทั้งหมดของภาคเรียนนี้จะถูกลบถาวร`)) return;
+        delete appData.semesters[id];
+        commit();
+        refreshAfterDataChange();
+    };
+
+    // ==================== Sub-tab: จัดการผู้ใช้ (แอดมิน) ====================
+    let editingUserId = null;
+
+    function renderUsers() {
+        const tbody = document.getElementById('usersBody');
+        tbody.innerHTML = appData.users.map(u => {
+            const taught = getSem().classes.filter(c => c.teacherId === u.id).length;
+            const roleBadge = u.role === 'admin'
+                ? '<span class="role-badge role-admin">แอดมิน</span>'
+                : '<span class="role-badge role-teacher">ครูผู้สอน</span>';
+            return `<tr>
+                <td><b>${u.name}</b>${u.id === (currentUser()||{}).id ? ' <small style="color:#6b7280;">(คุณ)</small>' : ''}</td>
+                <td>${u.username}</td>
+                <td>${roleBadge}</td>
+                <td>${u.role === 'teacher' ? taught + ' ห้อง' : '—'}</td>
+                <td>
+                    <button class="btn-warning" onclick="editUser('${u.id}')" style="padding:5px 10px;font-size:12px;">แก้ไข</button>
+                    <button class="btn-danger" onclick="deleteUser('${u.id}')" style="padding:5px 10px;font-size:12px;">ลบ</button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    window.saveUser = function() {
+        const name = document.getElementById('newUserName').value.trim();
+        const username = document.getElementById('newUserUsername').value.trim();
+        const password = document.getElementById('newUserPassword').value;
+        const role = document.getElementById('newUserRole').value;
+
+        if (!name || !username) { alert('กรุณากรอกชื่อและชื่อผู้ใช้'); return; }
+        if (appData.users.some(u => u.username.toLowerCase() === username.toLowerCase() && u.id !== editingUserId)) {
+            alert('มีชื่อผู้ใช้ "' + username + '" อยู่แล้ว'); return;
+        }
+
+        if (editingUserId) {
+            const u = appData.users.find(x => x.id === editingUserId);
+            if (!u) return;
+            u.name = name; u.username = username; u.role = role;
+            if (password) {
+                if (password.length < 4) { alert('รหัสผ่านต้องมีอย่างน้อย 4 ตัว'); return; }
+                u.password = hashPassword(password);
+            }
+            if (role !== 'admin' && u.id === currentUser().id) {
+                const admins = appData.users.filter(x => x.role === 'admin');
+                if (admins.length === 0) { alert('ต้องมีผู้ดูแลระบบอย่างน้อย 1 คน'); u.role = 'admin'; return; }
+            }
+        } else {
+            if (password.length < 4) { alert('กรุณาตั้งรหัสผ่านอย่างน้อย 4 ตัวอักษร'); return; }
+            appData.users.push({ id: 'u_' + Date.now(), name, username, password: hashPassword(password), role });
+        }
+        commit();
+        refreshAfterDataChange();
+    };
+
+    window.editUser = function(userId) {
+        const u = appData.users.find(x => x.id === userId);
+        if (!u) return;
+        editingUserId = userId;
+        document.getElementById('userFormTitle').innerText = '✏️ แก้ไขผู้ใช้: ' + u.name + ' (เว้นช่องรหัสผ่านว่าง = ไม่เปลี่ยน)';
+        document.getElementById('newUserName').value = u.name;
+        document.getElementById('newUserUsername').value = u.username;
+        document.getElementById('newUserPassword').value = '';
+        document.getElementById('newUserRole').value = u.role;
+        document.getElementById('userSaveBtn').innerText = '💾 บันทึกการแก้ไข';
+        document.getElementById('userCancelBtn').style.display = 'inline-block';
+    };
+
+    window.cancelUserEdit = function() {
+        editingUserId = null;
+        document.getElementById('userFormTitle').innerText = '➕ เพิ่มผู้ใช้ใหม่';
+        document.getElementById('newUserName').value = '';
+        document.getElementById('newUserUsername').value = '';
+        document.getElementById('newUserPassword').value = '';
+        document.getElementById('userSaveBtn').innerText = '➕ เพิ่มผู้ใช้';
+        document.getElementById('userCancelBtn').style.display = 'none';
+    };
+
+    window.deleteUser = function(userId) {
+        const u = appData.users.find(x => x.id === userId);
+        if (!u) return;
+        if (u.id === currentUser().id) { alert('ไม่สามารถลบบัญชีที่กำลังใช้งานอยู่ได้'); return; }
+        if (u.role === 'admin') {
+            const admins = appData.users.filter(x => x.role === 'admin');
+            if (admins.length <= 1) { alert('ต้องมีผู้ดูแลระบบอย่างน้อย 1 คน จึงจะลบได้'); return; }
+        }
+        const ownedCount = Object.values(appData.semesters).reduce((n, s) => n + s.classes.filter(c => c.teacherId === u.id).length, 0);
+        let msg = `ยืนยันการลบผู้ใช้ "${u.name}"?`;
+        if (ownedCount) msg += `\n\nห้องเรียนที่เคยกำหนดให้ ${u.name} จำนวน ${ownedCount} ห้อง จะกลายเป็น "ยังไม่กำหนดครู"`;
+        if (!confirm(msg)) return;
+        Object.values(appData.semesters).forEach(s => {
+            s.classes.forEach(c => { if (c.teacherId === u.id) c.teacherId = null; });
+        });
+        appData.users = appData.users.filter(x => x.id !== u.id);
+        commit();
+        refreshAfterDataChange();
+    };
+
+    // ==================== รายงาน ====================
+    function getWeekMonday(dateStr) {
+        const d = new Date(dateStr + 'T00:00:00');
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+        return new Date(d.setDate(diff));
+    }
+    function formatDate(d) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${dd}`;
+    }
+
+    function refreshReportLevelOptions() {
+        const select = document.getElementById('reportLevel');
+        const levels = [...new Set(visibleClasses().map(c => c.level || 'อื่นๆ'))];
+        const current = select.value;
+        select.innerHTML = '<option value="all">ทุกระดับชั้น</option>' + levels.map(l => `<option value="${l}">${l}</option>`).join('');
+        if ([...select.options].some(o => o.value === current)) select.value = current;
+    }
+    function refreshReportClassOptions() {
+        const select = document.getElementById('reportClass');
+        const level = document.getElementById('reportLevel')?.value || 'all';
+        const current = select.value;
+        const ids = visibleClasses().filter(c => level === 'all' || c.level === level).map(c => c.id);
+        select.innerHTML = '<option value="all">ทุกห้อง' + (isTeacher() ? 'ที่ฉันสอน' : '') + '</option>' +
+            ids.map(id => `<option value="${id}">${getClassInfo(id)?.room || id}</option>`).join('');
+        if ([...select.options].some(o => o.value === current)) select.value = current;
+    }
+    function reportClassIds() {
+        const level = document.getElementById('reportLevel')?.value || 'all';
+        const cls = document.getElementById('reportClass')?.value || 'all';
+        return visibleClasses()
+            .filter(c => (level === 'all' || c.level === level) && (cls === 'all' || c.id === cls))
+            .map(c => c.id);
+    }
+
+    function getReportDates(classId, startStr, endStr) {
+        return Object.keys(getSem().attendance || {})
+            .map(key => {
+                const p = key.lastIndexOf('_');
+                return { classId: key.slice(0, p), date: key.slice(p + 1), data: getSem().attendance[key] || {} };
+            })
+            .filter(r => r.classId === classId && r.date >= startStr && r.date <= endStr)
+            .sort((a, b) => a.date.localeCompare(b.date));
+    }
+
+    function resolveEffectiveStatus(v) {
+        const s = rawStatus(v);
+        if (s === 'absent' || s === 'leave' || s === 'late') return s;
+        return 'present';
+    }
+
+    function calcStudentReport(classId, student, startStr, endStr) {
+        const records = getReportDates(classId, startStr, endStr);
+        let present = 0, absent = 0, leave = 0, late = 0;
+        records.forEach(r => {
+            const st = resolveEffectiveStatus(r.data[student.id]);
+            if (st === 'present') present++;
+            else if (st === 'absent') absent++;
+            else if (st === 'leave') leave++;
+            else if (st === 'late') late++;
+        });
+        const weeks = getSem().weeks;
+        const pinfo = getClassPeriodInfo(classId);
+        const totalPeriods = weeks * pinfo.weeklyPeriods;
+        const absentPeriods = Math.round(absent * pinfo.periodsPerSession);
+        const attendedPeriods = totalPeriods - absentPeriods;
+        const leavePeriods = Math.round(leave * pinfo.periodsPerSession);
+        const latePeriods = Math.round(late * pinfo.periodsPerSession);
+        const percent = (attendedPeriods / totalPeriods) * 100;
+        let result = 'ปกติ';
+        if (percent < 60) result = 'เรียนซ้ำ';
+        else if (percent < 80) result = 'มส.';
+        return { classId, student, present, absent, leave, late, totalPeriods, attendedPeriods, absentPeriods, leavePeriods, latePeriods, percent, result };
+    }
+
+    function resultBadge(result) {
+        if (result === 'เรียนซ้ำ') return '<span class="badge-repeat">เรียนซ้ำ</span>';
+        if (result === 'มส.') return '<span class="badge-ms">ติด มส.</span>';
+        if (result === 'ปกติ') return '<span class="badge-ok">ปกติ</span>';
+        return '<span class="badge-wait">ไม่มีผล</span>';
+    }
+
+    window.onWeeksChange = function() {
+        const v = parseInt(document.getElementById('reportWeeks').value);
+        if (!v || v < 1 || v > 60) { alert('กรุณาระบุจำนวนสัปดาห์ 1-60'); document.getElementById('reportWeeks').value = getSem().weeks; return; }
+        getSem().weeks = v;
+        commit();
+        renderReports();
+        if (currentSettingsTab === 'semesters') renderSemesters();
+    };
+
+    function renderReports() {
+        if (!getSem()) return;
+        refreshReportLevelOptions();
+        refreshReportClassOptions();
+
+        const sem = getSem();
+        const weeks = sem.weeks;
+        document.getElementById('reportWeeks').value = weeks;
+
+        const inputStart = document.getElementById('reportStart')?.value || sem.startDate || '2026-05-15';
+        const week1Monday = getWeekMonday(inputStart);
+        const startDateStr = formatDate(week1Monday);
+        const endDateObj = new Date(week1Monday);
+        endDateObj.setDate(week1Monday.getDate() + (weeks * 7 - 3));
+        const endDateStr = formatDate(endDateObj);
+
+        const classIds = reportClassIds();
+        const rawAllRows = [];
+        classIds.forEach(classId => {
+            (sem.students[classId] || []).forEach(student => {
+                rawAllRows.push(calcStudentReport(classId, student, startDateStr, endDateStr));
+            });
+        });
+
+        const statusFilter = document.getElementById('reportStatusFilter')?.value || 'all';
+        const allRows = rawAllRows.filter(r => {
+            if (statusFilter === 'all') return true;
+            if (statusFilter === 'risk') return r.result === 'มส.' || r.result === 'เรียนซ้ำ';
+            if (statusFilter === 'ms') return r.result === 'มส.';
+            if (statusFilter === 'repeat') return r.result === 'เรียนซ้ำ';
+            if (statusFilter === 'normal') return r.result === 'ปกติ';
+            return true;
+        });
+
+        const weekDisplay = document.getElementById('weekRangeDisplay');
+        const reportClassVal = document.getElementById('reportClass').value;
+        if (weekDisplay) {
+            if (reportClassVal !== 'all') {
+                const pinfo = getClassPeriodInfo(reportClassVal);
+                weekDisplay.value = `${weeks * pinfo.weeklyPeriods} คาบ`;
+            } else {
+                weekDisplay.value = `${weeks} สัปดาห์`;
+            }
+        }
+
+        const totalStudents = rawAllRows.length;
+        const msCount = rawAllRows.filter(r => r.result === 'มส.').length;
+        const repeatCount = rawAllRows.filter(r => r.result === 'เรียนซ้ำ').length;
+        const avg = totalStudents > 0 ? rawAllRows.reduce((s, r) => s + r.percent, 0) / totalStudents : 0;
+
+        document.getElementById('reportSummary').innerHTML = `
+            <div class="report-card"><div class="label">นักเรียนทั้งหมด (ก่อนกรอง)</div><div class="value">${totalStudents}</div><small>${sem.name}${isTeacher() ? ' | เฉพาะห้องของฉัน' : ''}</small></div>
+            <div class="report-card"><div class="label">ติด มส.</div><div class="value">${msCount}</div><small>ต่ำกว่า 80%</small></div>
+            <div class="report-card"><div class="label">เรียนซ้ำ</div><div class="value">${repeatCount}</div><small>ต่ำกว่า 60%</small></div>
+            <div class="report-card"><div class="label">เฉลี่ยการมาเรียน</div><div class="value">${avg.toFixed(2)}%</div><small>จาก ${weeks} สัปดาห์เต็ม</small></div>
+        `;
+
+        const roomRows = classIds.map(classId => {
+            const rows = rawAllRows.filter(r => r.classId === classId);
+            const ms = rows.filter(r => r.result === 'มส.').length;
+            const repeat = rows.filter(r => r.result === 'เรียนซ้ำ').length;
+            const normal = rows.filter(r => r.result === 'ปกติ').length;
+            const roomAvg = rows.length ? rows.reduce((s, r) => s + r.percent, 0) / rows.length : 0;
+            return { classId, rows, ms, repeat, normal, roomAvg };
+        });
+        document.getElementById('roomSummaryBody').innerHTML = roomRows.length ? roomRows.map(x => `
+            <tr>
+                <td><b>${getClassInfo(x.classId)?.room || x.classId}</b></td>
+                <td>${x.rows.length}</td><td>${x.ms}</td><td>${x.repeat}</td><td>${x.normal}</td>
+                <td>${x.roomAvg.toFixed(2)}%</td>
+            </tr>
+        `).join('') : '<tr><td colspan="6" style="text-align:center;">ไม่พบข้อมูล</td></tr>';
+
+        document.getElementById('studentSummaryBody').innerHTML = allRows.length ? allRows.map(r => {
+            const index = (sem.students[r.classId] || []).findIndex(s => s.id === r.student.id) + 1;
+            const { cleanName } = parseStudentName(r.student.name);
+            return `
+                <tr>
+                    <td>${getClassInfo(r.classId)?.room || r.classId}</td>
+                    <td>${index}</td>
+                    <td>${cleanName}</td>
+                    <td><b style="color:green;">${r.attendedPeriods}</b></td>
+                    <td><b style="color:red;">${r.absentPeriods}</b></td>
+                    <td>${r.leavePeriods}</td>
+                    <td>${r.latePeriods}</td>
+                    <td>${r.totalPeriods}</td>
+                    <td><b>${r.percent.toFixed(2)}%</b></td>
+                    <td>${resultBadge(r.result)}</td>
+                </tr>
+            `;
+        }).join('') : `<tr><td colspan="10" style="text-align:center;">ไม่พบนักเรียนในสถานะที่กรอง</td></tr>`;
+
+        // ===== แบบฟอร์ม มส. สำหรับปริ้นท์ =====
+        const printContainer = document.getElementById('print-formal');
+        if (printContainer) {
+            const pageSize = 15;
+            const totalPages = Math.ceil(allRows.length / pageSize) || 1;
+            const now = new Date();
+            const dStr = now.getDate();
+            const mStr = thaiMonths[now.getMonth()];
+            const yStr = now.getFullYear() + 543;
+
+            let subjCode = ".....................";
+            let subjName = "........................................";
+            const selectedClass = document.getElementById('reportClass').value;
+            const selectedLevel = document.getElementById('reportLevel').value;
+            if (selectedClass !== 'all') {
+                const info = getClassInfo(selectedClass);
+                if (info) { subjCode = info.code || subjCode; subjName = info.subject || subjName; }
+            } else if (selectedLevel !== 'all') {
+                const sample = visibleClasses().find(c => c.level === selectedLevel);
+                if (sample) {
+                    const info = getClassInfo(sample.id);
+                    subjCode = info.code || subjCode; subjName = info.subject || subjName;
+                }
+            }
+
+            let pagesHtml = '';
+            let globalIndex = 1;
+            for (let p = 0; p < totalPages; p++) {
+                const pageRows = allRows.slice(p * pageSize, (p + 1) * pageSize);
+                let rowsHtml = '';
+                pageRows.forEach(r => {
+                    const { stdId, cleanName } = parseStudentName(r.student.name);
+                    rowsHtml += `
+                    <tr>
+                        <td>${globalIndex++}</td>
+                        <td>${stdId || ''}</td>
+                        <td class="left">${cleanName}</td>
+                        <td>${getClassInfo(r.classId)?.room || r.classId}</td>
+                        <td>${r.totalPeriods}</td>
+                        <td>${r.attendedPeriods}</td>
+                        <td>${r.percent.toFixed(2)}</td>
+                        <td>${r.result}</td>
+                    </tr>`;
+                });
+                if (pageRows.length < 15) {
+                    for (let i = pageRows.length; i < 15; i++) {
+                        rowsHtml += `<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+                    }
+                }
+                pagesHtml += `
+                <div class="print-page">
+                    <div class="formal-header">แบบแจ้งรายชื่อนักเรียนมีเวลาเรียนไม่ครบ ไม่มีสิทธิ์สอบ (มส)</div>
+                    <div class="formal-school">โรงเรียนพนมรุ้ง</div>
+                    <div class="formal-date">วันที่ <span>${dStr}</span> เดือน <span>${mStr}</span> พ.ศ. <span>${yStr}</span></div>
+                    <div class="formal-body">
+                        <p><b>เรื่อง</b> &nbsp;&nbsp;&nbsp;แจ้งรายชื่อนักเรียนมีเวลาเรียนไม่ครบ ไม่มีสิทธิ์สอบ (มส)</p>
+                        <p><b>เรียน</b> &nbsp;&nbsp;&nbsp;ผู้อำนวยการโรงเรียนพนมรุ้ง</p>
+                        <p class="indent">
+                            ด้วยข้าพเจ้า(นาย/นาง/นางสาว) <b>${currentUser() ? currentUser().name : '..........................'}</b> ปฏิบัติหน้าที่สอน
+                            ในรายวิชา <b>${subjName}</b> รหัสวิชา <b>${subjCode}</b>
+                            ในภาคเรียนที่ <b>${sem.term}/${sem.year}</b>
+                            กลุ่มสาระการเรียนรู้ <b>วิทยาศาสตร์และเทคโนโลยี</b>
+                            ได้ติดตามการมาเรียนของนักเรียนในชั้นเรียน ปรากฏว่ามีนักเรียนที่ไม่เข้าเรียน ทำให้มีเวลาเรียนไม่ครบ ไม่มีสิทธิ์สอบ ดังต่อไปนี้
+                        </p>
+                    </div>
+                    <table class="formal-table">
+                        <thead>
+                            <tr>
+                                <th rowspan="2" width="5%">ที่</th>
+                                <th rowspan="2" width="15%">เลขประจำตัว</th>
+                                <th rowspan="2" width="30%">ชื่อ-สกุล</th>
+                                <th rowspan="2" width="10%">ชั้น</th>
+                                <th colspan="3" width="24%">เวลาเรียนในวิชานี้</th>
+                                <th rowspan="2" width="16%">หมายเหตุ</th>
+                            </tr>
+                            <tr><th>เต็ม</th><th>มา</th><th>ร้อยละ</th></tr>
+                        </thead>
+                        <tbody>${rowsHtml}</tbody>
+                    </table>
+                    <div class="signatures">
+                        <div>
+                            <p>ลงชื่อ..................................................ครูประจำวิชา</p>
+                            <p>( ${currentUser() ? currentUser().name : '..........................' } )</p>
+                        </div>
+                        <div>
+                            <p>ลงชื่อ..................................................งานวัดผล</p>
+                            <p>( ........................................ )</p>
+                        </div>
+                    </div>
+                    <div class="formal-remark">
+                        <p>หมายเหตุ &nbsp;&nbsp;1. นักเรียนที่มีเวลาเรียนร้อยละ 60-80 ไม่มีสิทธิ์เข้าสอบ ให้ยื่นคำร้องตามขั้นตอนได้</p>
+                        <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;2. นักเรียนที่มีเวลาเรียนไม่ถึงร้อยละ 60 ไม่มีสิทธิ์เข้าสอบ ให้เรียนเพิ่มเติมจนถึงร้อยละ 80 จึงสอบและตัดสินผลการเรียนได้</p>
+                    </div>
+                </div>`;
+            }
+            printContainer.innerHTML = pagesHtml;
+        }
+    }
+    window.renderReports = renderReports;
+
+    // ==================== สำรอง/กู้คืน (แยกตามสิทธิ์) ====================
+    function downloadJSON(obj, filename) {
+        const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function filterStudentsBy(students, ids) {
+        const out = {};
+        Object.keys(students || {}).forEach(k => { if (ids.has(k)) out[k] = students[k]; });
+        return out;
+    }
+    function filterAttendanceBy(att, ids) {
+        const out = {};
+        Object.keys(att || {}).forEach(k => {
+            const cid = k.slice(0, k.lastIndexOf('_'));
+            if (ids.has(cid)) out[k] = att[k];
+        });
+        return out;
+    }
+
+    function renderBackupTab() {
+        const box = document.getElementById('backupExportBox');
+        const teacher = isTeacher();
+        const semListHtml = Object.values(appData.semesters).map(s => {
+            const stuCount = Object.values(s.students || {}).reduce((a, b) => a + b.length, 0);
+            const attCount = Object.keys(s.attendance || {}).length;
+            return `<label class="check-item"><input type="checkbox" class="bak-sem" value="${s.id}" ${s.id === appData.currentSemesterId ? 'checked' : ''}>
+                <b>${s.name}</b> <small>(ห้อง ${s.classes.length} | นักเรียน ${stuCount} คน | เช็คชื่อ ${attCount} วัน)</small></label>`;
+        }).join('') || '<small>ยังไม่มีภาคเรียน</small>';
+
+        let html = '<div class="settings-form-box"><h4>💾 สำรองข้อมูล (Export) — เลือกได้ว่าจะสำรองส่วนไหน</h4>';
+        html += '<label><b>1) เลือกภาคเรียนที่ต้องการสำรอง:</b></label>';
+        html += '<div id="backupSemesterList" class="checkbox-list" style="margin-bottom:12px;">' + semListHtml + '</div>';
+        html += '<label><b>2) เลือกประเภทข้อมูล:</b></label><div style="display:flex; gap:18px; flex-wrap:wrap; margin:6px 0 14px;">';
+        if (!teacher) html += '<label class="check-item"><input type="checkbox" id="bakStructure" checked> โครงสร้าง (ห้องเรียน / รายวิชา / ตารางเรียน)</label>';
+        html += '<label class="check-item"><input type="checkbox" id="bakStudents" checked> รายชื่อนักเรียน</label>';
+        html += '<label class="check-item"><input type="checkbox" id="bakAttendance" checked> ข้อมูลเช็คชื่อ</label>';
+        html += '</div>';
+        if (teacher) html += '<p class="form-hint">🔒 ครูสำรองข้อมูลได้เฉพาะ <b>รายชื่อนักเรียนและเช็คชื่อของห้องที่ตนสอนเท่านั้น</b> (ส่วนอื่นของห้องถูกตัดออกอัตโนมัติ)</p>';
+        html += '<button class="btn-success" onclick="doBackup()">💾 ดาวน์โหลดไฟล์สำรอง (.json)</button></div>';
+        box.innerHTML = html;
+    }
+
+    window.doBackup = function() {
+        const semIds = [...document.querySelectorAll('.bak-sem:checked')].map(cb => cb.value);
+        if (!semIds.length) { alert('กรุณาเลือกภาคเรียนอย่างน้อย 1 ภาคเรียน'); return; }
+        const teacher = isTeacher();
+        const incS = !teacher && document.getElementById('bakStructure') && document.getElementById('bakStructure').checked;
+        const incSt = document.getElementById('bakStudents').checked;
+        const incA = document.getElementById('bakAttendance').checked;
+        if (!incS && !incSt && !incA) { alert('กรุณาเลือกประเภทข้อมูลอย่างน้อย 1 ประเภท'); return; }
+
+        const mine = new Set(myClassIds());
+        const payload = { app: 'kruWichanAttendance', version: 4, exportedAt: new Date().toISOString(), exportedBy: currentUser().name, role: currentUser().role, semesters: [] };
+
+        semIds.forEach(id => {
+            const s = appData.semesters[id];
+            const out = { id: s.id, name: s.name, term: s.term, year: s.year, weeks: s.weeks, startDate: s.startDate };
+            if (teacher) {
+                // ครู: เฉพาะข้อมูลห้องของตัวเองเท่านั้น
+                if (incSt) out.students = filterStudentsBy(s.students, mine);
+                if (incA) out.attendance = filterAttendanceBy(s.attendance, mine);
+            } else {
+                if (incS) { out.classes = s.classes; out.subjects = s.subjects; out.schedule = s.schedule; }
+                if (incSt) out.students = s.students;
+                if (incA) out.attendance = s.attendance;
+            }
+            payload.semesters.push(out);
+        });
+        downloadJSON(payload, `backup_attendance_${new Date().toISOString().split('T')[0]}.json`);
+        alert('สำรองข้อมูลสำเร็จ! ไฟล์ถูกดาวน์โหลดแล้ว');
+    };
+
+    let pendingRestore = null;
+
+    window.previewRestore = function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const parsed = JSON.parse(e.target.result);
+                let sems = [];
+                if (Array.isArray(parsed.semesters) && parsed.semesters.length) {
+                    sems = parsed.semesters;
+                } else if (parsed.students || parsed.attendance || parsed.classes) {
+                    sems = [{ id: 'imported_' + Date.now(), name: 'ข้อมูลรูปแบบเดิม (นำเข้า ' + new Date().toLocaleDateString('th-TH') + ')', term: '1', year: new Date().getFullYear() + 543, weeks: 18, startDate: '', classes: parsed.classes, subjects: parsed.subjects, schedule: parsed.schedule, students: parsed.students, attendance: parsed.attendance }];
+                } else {
+                    alert('ไฟล์ JSON ไม่ถูกต้อง'); return;
+                }
+                pendingRestore = sems;
+                renderRestorePreview();
+            } catch (err) {
+                alert('เกิดข้อผิดพลาดในการอ่านไฟล์ JSON');
+            }
+            event.target.value = '';
+        };
+        reader.readAsText(file);
+    };
+
+    function renderRestorePreview() {
+        const box = document.getElementById('restorePreview');
+        if (!pendingRestore) { box.innerHTML = ''; return; }
+        const teacher = isTeacher();
+        const admin = !teacher;
+        const hasS = admin && pendingRestore.some(s => Array.isArray(s.classes) || Array.isArray(s.subjects) || Array.isArray(s.schedule));
+        const hasSt = pendingRestore.some(s => s.students);
+        const hasA = pendingRestore.some(s => s.attendance);
+
+        let html = '<div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:15px;">';
+        html += '<h4 style="margin:0 0 10px;">พบข้อมูลในไฟล์ — เลือกส่วนที่ต้องการกู้คืน:</h4>';
+        html += '<div class="checkbox-list" style="margin:6px 0 12px;">';
+        pendingRestore.forEach((s, i) => {
+            const exists = !!appData.semesters[s.id];
+            const rooms = (s.classes || []).length;
+            const stus = Object.values(s.students || {}).reduce((a, b) => a + (Array.isArray(b) ? b.length : 0), 0);
+            const atts = Object.keys(s.attendance || {}).length;
+            html += `<label class="check-item"><input type="checkbox" class="res-sem" value="${i}" checked>
+                <b>${s.name}</b> <small>(ห้อง ${rooms} | นักเรียน ${stus} คน | เช็คชื่อ ${atts} วัน)${exists ? ' — <b style="color:var(--danger);">มีอยู่แล้วในระบบ</b>' : ''}</small></label>`;
+        });
+        html += '</div>';
+        html += '<div style="display:flex; gap:18px; flex-wrap:wrap; margin:6px 0 12px;">';
+        if (admin) html += `<label class="check-item"><input type="checkbox" id="resStructure" ${hasS ? 'checked' : 'disabled'}> โครงสร้าง (ห้องเรียน/รายวิชา/ตารางเรียน)</label>`;
+        html += `<label class="check-item"><input type="checkbox" id="resStudents" ${hasSt ? 'checked' : 'disabled'}> รายชื่อนักเรียน</label>`;
+        html += `<label class="check-item"><input type="checkbox" id="resAttendance" ${hasA ? 'checked' : 'disabled'}> ข้อมูลเช็คชื่อ</label>`;
+        html += '</div>';
+        if (admin) {
+            html += '<div style="display:flex; flex-direction:column; gap:6px; margin:6px 0 14px;">';
+            html += `<label class="check-item"><input type="radio" name="resMode" value="replace" checked> <b>แทนที่</b> — ลบข้อมูลเดิมในส่วนที่เลือก แล้วใช้ข้อมูลจากไฟล์แทน</label>`;
+            html += `<label class="check-item"><input type="radio" name="resMode" value="merge"> <b>ผสาน</b> — เพิ่มเฉพาะรายการที่ยังไม่มีในระบบ</label>`;
+            html += '</div>';
+        } else {
+            html += '<p class="form-hint" style="margin-bottom:12px;">🔒 ครูกู้คืนได้เฉพาะข้อมูลของห้องที่ตนสอน (โหมดผสานอัตโนมัติ ไม่กระทบข้อมูลครูท่านอื่น)</p>';
+        }
+        html += '<button class="btn-success" onclick="doRestore()">📂 กู้คืนข้อมูลที่เลือก</button></div>';
+        box.innerHTML = html;
+    }
+
+    window.doRestore = function() {
+        if (!pendingRestore) return;
+        const selIdx = [...document.querySelectorAll('.res-sem:checked')].map(cb => parseInt(cb.value));
+        if (!selIdx.length) { alert('กรุณาเลือกภาคเรียนอย่างน้อย 1 ภาคเรียน'); return; }
+        const teacher = isTeacher();
+        const incS = !teacher && document.getElementById('resStructure') && document.getElementById('resStructure').checked;
+        const incSt = document.getElementById('resStudents') ? document.getElementById('resStudents').checked : false;
+        const incA = document.getElementById('resAttendance') ? document.getElementById('resAttendance').checked : false;
+        if (!incS && !incSt && !incA) { alert('กรุณาเลือกประเภทข้อมูลอย่างน้อย 1 ประเภท'); return; }
+        const modeEl = document.querySelector('input[name="resMode"]:checked');
+        const mode = teacher ? 'merge' : (modeEl ? modeEl.value : 'replace');
+        if (!confirm(`ยืนยันการกู้คืนข้อมูล?\nโหมด: ${mode === 'replace' ? 'แทนที่ข้อมูลเดิม' : 'ผสานข้อมูล (เพิ่มเฉพาะที่ไม่มี)'}`)) return;
+
+        const mine = new Set(myClassIds());
+
+        selIdx.forEach(i => {
+            const fs = pendingRestore[i];
+            // ครู: ตัดข้อมูลในไฟล์ให้เหลือเฉพาะห้องของตัวเอง
+            const fsStudents = teacher ? filterStudentsBy(fs.students, mine) : fs.students;
+            const fsAttendance = teacher ? filterAttendanceBy(fs.attendance, mine) : fs.attendance;
+
+            const existing = appData.semesters[fs.id];
+            if (!existing || (mode === 'replace' && !teacher)) {
+                const base = existing || { id: fs.id, name: fs.name, term: fs.term, year: fs.year, weeks: fs.weeks, startDate: fs.startDate, classes: [], subjects: [], schedule: [], students: {}, attendance: {} };
+                if (incS) { base.classes = fs.classes || []; base.subjects = fs.subjects || []; base.schedule = fs.schedule || []; }
+                if (incSt) base.students = fsStudents || {};
+                if (incA) base.attendance = fsAttendance || {};
+                appData.semesters[fs.id] = normalizeSemester(base);
+            } else {
+                // โหมดผสาน
+                if (incS) {
+                    (fs.classes || []).forEach(c => { if (!existing.classes.some(x => x.id === c.id)) existing.classes.push(c); });
+                    (fs.subjects || []).forEach(s => { if (!existing.subjects.some(x => x.id === s.id)) existing.subjects.push(s); });
+                    (fs.schedule || []).forEach(sc => {
+                        const dup = existing.schedule.some(x => x.day === sc.day && x.classId === sc.classId && x.startPeriod === sc.startPeriod && x.endPeriod === sc.endPeriod);
+                        if (!dup) existing.schedule.push(sc);
+                    });
+                }
+                if (incSt) {
+                    Object.keys(fsStudents || {}).forEach(cid => {
+                        if (!Array.isArray(existing.students[cid])) existing.students[cid] = [];
+                        const ids = new Set(existing.students[cid].map(x => x.id));
+                        (fsStudents[cid] || []).forEach(st => { if (!ids.has(st.id)) existing.students[cid].push(st); });
+                    });
+                }
+                if (incA) {
+                    Object.keys(fsAttendance || {}).forEach(key => {
+                        existing.attendance[key] = Object.assign({}, existing.attendance[key] || {}, fsAttendance[key]);
+                    });
+                }
+            }
+        });
+
+        commit();
+        pendingRestore = null;
+        document.getElementById('restorePreview').innerHTML = '';
+        refreshAfterDataChange();
+        alert('กู้คืนข้อมูลสำเร็จ!');
+    };
+
+    // ==================== เริ่มต้นระบบ ====================
+    function appReady() {
+        applyRoleUI();
+        renderUserBar();
+        updateRtBadge();
+        renderSemesterSelect();
+        syncSemesterScopedInputs();
+        populateAllClassSelects();
+        document.getElementById('dateSelect').valueAsDate = new Date();
+        document.getElementById('newSemYear').value = new Date().getFullYear() + 543;
+        updateStudentCopyOption();
+        onDateChange();
+        renderReports();
+        renderBackupTab();
+        renderAllSettingsTabs();
+    }
+
+    window.addEventListener('DOMContentLoaded', function() {
+        // ถ้ายังไม่ล็อกอิน ให้แสดงหน้าล็อกอิน รอจนกว่าจะล็อกอินสำเร็จ
+        if (!currentUser()) {
+            document.getElementById('loginOverlay').classList.remove('hidden');
+            // โหลดข้อมูลพื้นฐานไว้เงียบ ๆ เพื่อรองรับการล็อกอิน
+            renderSemesterSelect();
+        } else {
+            document.getElementById('loginOverlay').classList.add('hidden');
+            appReady();
+        }
+    });
+
+})();
+</script>
+
+</body>
+</html>
